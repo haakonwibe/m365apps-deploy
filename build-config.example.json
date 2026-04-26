@@ -1,0 +1,11 @@
+{
+  "_comment": "build-config.example.json - copy to build-config.json (which is .gitignored) and edit. ALL VALUES ARE OPTIONAL: leaving a scalar value as null or as an empty string makes the build behave as if the token were never set, and the corresponding line in the staged XML is removed (the setting simply isn't applied) - mirroring how config.office.com / OCT treats blank fields. Array tokens behave differently: an explicit array (including an empty one) REPLACES the default that lives in the source XML - it does not supplement. Setting an array value to null falls back to the default. Leaving every value blank produces a fully generic public-toolkit build with no organisation-specific data baked in (and the modern default exclusion set for ExcludedApps). CLI parameters on Build-IntuneWinPackages.ps1 (e.g. -CompanyName, -ExcludedApps) override anything set here. The canonical token registration table is Get-DefaultBuildTokens in Build\\Invoke-ProductStaging.ps1; the build engine hard-fails on any {{...}} placeholder in source XMLs that isn't registered there.",
+
+  "_currentlySupportedTokens": {
+    "CompanyName": "Optional scalar. Substituted into <Setup Name=\"Company\" Value=\"...\"/> in the M365 Apps / Visio / Project base XMLs. Controls the 'registered to' string in Office's Account pane. If unset, the <Setup> line is dropped and the surrounding <AppSettings> block is stripped if it becomes empty.",
+    "ExcludedApps": "Optional array. Replaces the default <ExcludeApp> set in M365Apps/Configurations/m365apps-base.xml. Default ships seven exclusions: Access, Bing, Groove, Lync, OneDrive, Publisher, Teams (rationale documented in docs/architecture.md). Allowed values: Access, Bing, Excel, Groove, Lync, OneDrive, OneNote, Outlook, OutlookForWindows, PowerPoint, Publisher, Teams, Word. Unknown IDs fail the build before staging starts (ODT silently ignores invalid IDs, so a typo would otherwise ship a working-looking package). Empty array installs every app. Replaces - does not supplement - the XML default; if you want the default plus one extra, list every entry you want."
+  },
+
+  "CompanyName": null,
+  "ExcludedApps": null
+}

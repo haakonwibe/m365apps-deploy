@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  visio-base.xml
+  Adds Visio Professional (VisioProRetail) on top of an existing Microsoft 365
+  Apps installation.
+
+  Rules enforced by design:
+    - Channel and OfficeClientEdition MUST match the existing Office install.
+      If they don't, ODT refuses the install ("Office installation mismatch").
+    - Language ID must be a language supported by Visio. en-us is the universal
+      baseline. See docs/language-matrix.md for supported Visio languages.
+
+  If you use Visio Standard, replace VisioProRetail with VisioStdRetail.
+
+  Build-time tokens (resolved by Build\Build-IntuneWinPackages.ps1):
+    CompanyName  OPTIONAL. Set via -CompanyName or build-config.json.
+                 If unset, the <Setup Name="Company" .../> line is
+                 removed during staging and Company is not applied.
+-->
+<Configuration ID="visio-base">
+
+  <Add OfficeClientEdition="64" Channel="MonthlyEnterprise" MigrateArch="TRUE" AllowCdnFallback="TRUE">
+    <Product ID="VisioProRetail">
+      <Language ID="en-us" />
+    </Product>
+  </Add>
+
+  <Property Name="SharedComputerLicensing" Value="0" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+  <Property Name="AUTOACTIVATE" Value="0" />
+
+  <Updates Enabled="TRUE" />
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

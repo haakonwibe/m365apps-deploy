@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  project-remove.xml
+  Removes ProjectProRetail only. Leaves Microsoft 365 Apps and Visio installed.
+-->
+<Configuration ID="project-remove">
+
+  <Remove All="FALSE">
+    <Product ID="ProjectProRetail" />
+  </Remove>
+
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

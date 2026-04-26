@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  m365apps-base.xml
+  Base installation of Microsoft 365 Apps for Enterprise (en-us).
+
+  Static (manual XML edit per fork - see docs/customization.md):
+    - Channel             Monthly Enterprise Channel by default. Other
+                          options: Current, SemiAnnual,
+                          SemiAnnualPreview, BetaChannel, CurrentPreview.
+    - OfficeClientEdition "64" (default) or "32".
+    - Language ID         "en-us" is the broadest baseline. Replace with
+                          your primary language, or see LanguagePacks/
+                          to deploy additional languages as separate
+                          Win32 apps.
+    - ExcludeApp          See ExcludedApps below; the modern default
+                          is the opinionated seven-app set carried by
+                          the begin/end markers in the <Product> block.
+    - AUTOACTIVATE / FORCEAPPSHUTDOWN / SharedComputerLicensing
+                          adjust per licensing model
+                          (SharedComputerLicensing=1 on RDS/AVD).
+
+  Build-time tokens (resolved by Build\Build-IntuneWinPackages.ps1):
+    CompanyName   OPTIONAL scalar. Set via -CompanyName or
+                  build-config.json (see
+                  ../../build-config.example.json). If unset, the
+                  entire <Setup Name="Company" .../> line below is
+                  removed during staging and the Company setting is
+                  simply not applied (matches OCT's behaviour for
+                  blank fields).
+    ExcludedApps  ARRAY. The default seven-app exclusion set lives
+                  literally below, between the begin/end marker comments
+                  inside the <Product> block. A build-config.json
+                  override REPLACES (not supplements) the default; see
+                  docs/customization.md Section 4. Empty array produces
+                  zero <ExcludeApp> elements.
+-->
+<Configuration ID="m365apps-base">
+
+  <Add OfficeClientEdition="64" Channel="MonthlyEnterprise" MigrateArch="TRUE" AllowCdnFallback="TRUE">
+    <Product ID="O365ProPlusRetail">
+      <Language ID="en-us" />
+      <ExcludeApp ID="Access" />
+      <ExcludeApp ID="Bing" />
+      <ExcludeApp ID="Groove" />
+      <ExcludeApp ID="Lync" />
+      <ExcludeApp ID="OneDrive" />
+      <ExcludeApp ID="Publisher" />
+      <ExcludeApp ID="Teams" />
+    </Product>
+  </Add>
+
+  <Property Name="SharedComputerLicensing" Value="0" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+  <Property Name="DeviceBasedLicensing" Value="0" />
+  <Property Name="SCLCacheOverride" Value="0" />
+  <Property Name="AUTOACTIVATE" Value="0" />
+
+  <Updates Enabled="TRUE" />
+
+  <RemoveMSI />
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

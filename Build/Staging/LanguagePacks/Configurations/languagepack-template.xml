@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  languagepack-template.xml
+  Installs an additional language pack alongside an existing Click-to-Run
+  Microsoft 365 Apps install.
+
+  Tokens replaced at runtime by Install-LanguagePack.ps1:
+    {{OfficeClientEdition}}  -> "64" | "32"   (read from installed Office)
+    {{Channel}}              -> canonical name (e.g. MonthlyEnterprise)
+                                read from the installed Office's UpdateChannel
+    {{LanguageID}}           -> BCP-47 code, e.g. nb-no, de-de
+
+  Pattern per Microsoft's "Build dynamic, lean, and universal packages" +
+  "Remove language packs or proofing tools" docs. The Product ID is
+  "LanguagePack" - Microsoft's product-agnostic pseudo-product that adds
+  the language across all installed M365 Apps. This is the authoritative
+  Product ID for language-accessory installs, not the base Office
+  product ID.
+
+  The parameter -TargetProduct on Install-LanguagePack.ps1 remains for
+  language-matrix validation (Visio / Project support narrower language
+  lists than Office) and for driving detection, but does not drive the
+  install XML's Product ID. Visio- or Project-specific language additions
+  are a different ODT workflow (re-add the base product with the extra
+  language) and are out of scope for this template.
+-->
+<Configuration ID="languagepack-{{LanguageID}}">
+
+  <Add OfficeClientEdition="{{OfficeClientEdition}}" Channel="{{Channel}}">
+    <Product ID="LanguagePack">
+      <Language ID="{{LanguageID}}" />
+    </Product>
+  </Add>
+
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

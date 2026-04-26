@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>m365apps-deploy · Technical Poster</title>
+<meta name="description" content="Production-ready Microsoft 365 Apps, Visio, Project, and language pack deployments for Intune. Three commands. No XML editing.">
+
+<meta property="og:title" content="m365apps-deploy">
+<meta property="og:description" content="Production-ready M365 Apps deployments for Intune. Three commands. No XML editing.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Manrope:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg: #0a0e1a;
+  --bg-2: #111726;
+  --card: #151b2c;
+  --card-hover: #1b2238;
+  --border: #232b42;
+  --border-strong: #2f3a58;
+
+  --text: #f0ede6;
+  --text-muted: #8b95a7;
+  --text-faint: #828ca0;
+
+  --accent: #ff6b35;        /* Office orange */
+  --accent-2: #4cc9f0;       /* PowerShell-ish cyan */
+  --good: #4ade80;
+  --bad: #ef4444;
+  --warn: #fbbf24;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow: 0 8px 24px rgba(0,0,0,0.4);
+  --shadow-lg: 0 24px 60px rgba(0,0,0,0.5);
+
+  --radius: 14px;
+  --radius-lg: 20px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Manrope', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* atmospheric background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(255, 107, 53, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(76, 201, 240, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 107, 53, 0.03) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* subtle grain */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
+}
+
+.container {
+  position: relative;
+  z-index: 2;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 60px 32px;
+}
+
+/* =============================================
+   HEADER
+   ============================================= */
+
+.poster-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 32px;
+}
+
+.poster-meta .dot {
+  width: 4px;
+  height: 4px;
+  background: var(--text-faint);
+  border-radius: 50%;
+}
+
+.poster-meta .meta-tag {
+  margin-left: auto;
+  padding: 6px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.hero {
+  margin-bottom: 80px;
+  padding: 60px 0 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 48px;
+  align-items: end;
+}
+
+h1.title {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 900;
+  font-size: clamp(48px, 8vw, 96px);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+  color: var(--text);
+  margin-bottom: 24px;
+}
+
+h1.title .accent {
+  color: var(--accent);
+}
+
+.tagline {
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(18px, 2.2vw, 24px);
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--text-muted);
+  max-width: 720px;
+  margin-bottom: 16px;
+}
+
+.subtagline {
+  font-family: 'Archivo', sans-serif;
+  font-size: clamp(20px, 2.5vw, 28px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.subtagline .pipe {
+  color: var(--accent);
+  margin: 0 12px;
+}
+
+.hero-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.hero-stat {
+  font-family: 'Archivo', sans-serif;
+  text-align: right;
+}
+
+.hero-stat .num {
+  font-size: 56px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-stat.secondary {
+  opacity: 0.85;
+  margin-top: 12px;
+}
+
+.hero-stat.secondary .num {
+  font-size: 38px;
+}
+
+.hero-stat .label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+
+.tech-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 40px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-2);
+}
+
+.badge.primary .dot {
+  background: var(--accent);
+}
+
+/* =============================================
+   COMPARISON SECTION
+   ============================================= */
+
+section {
+  margin-bottom: 100px;
+}
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.section-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+
+h2 {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 800;
+  font-size: clamp(32px, 4vw, 44px);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+h2 .muted {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.section-intro {
+  color: var(--text-muted);
+  font-size: 17px;
+  max-width: 680px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.compare-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+}
+
+.compare-card.bad {
+  border-color: rgba(239, 68, 68, 0.25);
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.04) 0%, var(--card) 100%);
+}
+
+.compare-card.good {
+  border-color: rgba(74, 222, 128, 0.25);
+  background: linear-gradient(180deg, rgba(74, 222, 128, 0.04) 0%, var(--card) 100%);
+}
+
+.compare-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.compare-card.bad .compare-header { color: var(--bad); }
+.compare-card.good .compare-header { color: var(--good); }
+
+.compare-header .icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.compare-card.bad .icon {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--bad);
+}
+
+.compare-card.good .icon {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--good);
+}
+
+pre.code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  color: var(--text);
+}
+
+pre.code .comment { color: var(--text-faint); }
+pre.code .keyword { color: #c084fc; }
+pre.code .string { color: #fbbf24; }
+pre.code .var { color: var(--accent-2); }
+pre.code .accent { color: var(--accent); }
+pre.code .muted { color: var(--text-muted); }
+
+.compare-points {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.compare-points li {
+  display: flex;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.compare-points li::before {
+  flex-shrink: 0;
+  width: 18px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+}
+
+.compare-card.bad .compare-points li::before {
+  content: '×';
+  color: var(--bad);
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.compare-card.good .compare-points li::before {
+  content: '→';
+  color: var(--good);
+}
+
+/* =============================================
+   FEATURE GRID
+   ============================================= */
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.feature {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.feature:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  background: var(--card-hover);
+}
+
+.feature::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 3px;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.feature:hover::before {
+  width: 100%;
+}
+
+.feature-icon {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.15), rgba(76, 201, 240, 0.1));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+  color: var(--accent);
+}
+
+.feature-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.feature h3 {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.feature p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.feature .feature-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+  margin-top: 14px;
+  display: block;
+}
+
+/* =============================================
+   FLOW DIAGRAM
+   ============================================= */
+
+.flow {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+  padding: 32px 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.flow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+  padding: 16px 8px;
+}
+
+.flow-step:not(:last-child)::after {
+  content: '→';
+  position: absolute;
+  right: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.flow-step .step-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+
+.flow-step .step-icon {
+  width: 56px;
+  height: 56px;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-2);
+  margin-bottom: 12px;
+}
+
+.flow-step .step-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.flow-step .step-title {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.flow-step .step-desc {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1.4;
+}
+
+/* =============================================
+   COMPARISON TABLE
+   ============================================= */
+
+.comparison-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 18px 20px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.comparison-table thead th {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: var(--bg-2);
+}
+
+.comparison-table thead th.highlight {
+  color: var(--accent);
+  background: rgba(255, 107, 53, 0.06);
+}
+
+.comparison-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.comparison-table tbody td:first-child {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.comparison-table tbody td {
+  color: var(--text-muted);
+}
+
+.comparison-table tbody td.win {
+  color: var(--text);
+  background: rgba(255, 107, 53, 0.04);
+  font-weight: 500;
+}
+
+.comparison-table tbody td .check {
+  color: var(--good);
+  margin-right: 6px;
+  font-weight: 700;
+}
+
+.comparison-table tbody td .x {
+  color: var(--bad);
+  margin-right: 6px;
+  font-weight: 700;
+}
+
+/* =============================================
+   PRODUCTS GRID
+   ============================================= */
+
+.products {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+
+.product {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.product::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at top, rgba(255, 107, 53, 0.08), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.product:hover::before {
+  opacity: 1;
+}
+
+.product-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.18), rgba(76, 201, 240, 0.1));
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.product-icon svg {
+  width: 28px;
+  height: 28px;
+  color: var(--accent);
+}
+
+.product-name {
+  font-family: 'Archivo', sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--text);
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 1;
+}
+
+.product-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  position: relative;
+  z-index: 1;
+}
+
+.product-count {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 3px 10px;
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 100px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  position: relative;
+  z-index: 1;
+}
+
+/* =============================================
+   QUICK START
+   ============================================= */
+
+.quickstart {
+  background: linear-gradient(135deg, var(--card) 0%, var(--bg-2) 100%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 48px;
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 48px;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.quickstart::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -100px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(255, 107, 53, 0.15), transparent 70%);
+  pointer-events: none;
+}
+
+.quickstart-content h2 {
+  margin-bottom: 12px;
+}
+
+.quickstart-content p {
+  color: var(--text-muted);
+  font-size: 16px;
+  margin-bottom: 24px;
+}
+
+.quickstart-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+}
+
+.quickstart-meta .pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+  box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(74, 222, 128, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.quickstart-code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13.5px;
+  line-height: 1.9;
+  position: relative;
+  z-index: 1;
+}
+
+.quickstart-code .line {
+  display: flex;
+  gap: 16px;
+}
+
+.quickstart-code .num {
+  color: var(--text-faint);
+  user-select: none;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: right;
+}
+
+.quickstart-code .prompt {
+  color: var(--accent);
+}
+
+.quickstart-code .cmd {
+  color: var(--text);
+}
+
+.quickstart-code .arg {
+  color: var(--accent-2);
+}
+
+.quickstart-code .comment {
+  color: var(--text-faint);
+}
+
+/* =============================================
+   FOOTER
+   ============================================= */
+
+footer.footer {
+  margin-top: 100px;
+  padding-top: 40px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 40px;
+  align-items: center;
+}
+
+.footer-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+  color: var(--accent);
+}
+
+.footer-link .arrow {
+  transition: transform 0.2s ease;
+}
+
+.footer-link:hover .arrow {
+  transform: translate(2px, -2px);
+}
+
+.footer-attrib {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  font-family: 'Manrope', sans-serif;
+}
+
+.footer-attrib strong {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.footer-version {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-faint);
+  letter-spacing: 0.1em;
+}
+
+/* =============================================
+   RESPONSIVE
+   ============================================= */
+
+@media (max-width: 960px) {
+  .container { padding: 40px 20px; }
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero-stats { flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 24px 32px; }
+  .hero-stat { text-align: left; }
+  .hero-stat.secondary { margin-top: 0; }
+  .compare-grid { grid-template-columns: 1fr; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .flow { grid-template-columns: repeat(3, 1fr); }
+  .flow-step:nth-child(3n)::after { display: none; }
+  .products { grid-template-columns: repeat(2, 1fr); }
+  .quickstart { grid-template-columns: 1fr; padding: 32px; }
+  footer.footer { grid-template-columns: 1fr; text-align: left; gap: 16px; }
+  .footer-attrib, .footer-version { text-align: left; }
+}
+
+@media (max-width: 600px) {
+  .feature-grid { grid-template-columns: 1fr; }
+  .flow { grid-template-columns: repeat(2, 1fr); }
+  .flow-step:not(:last-child)::after { display: none; }
+  .products { grid-template-columns: 1fr; }
+  .comparison-table { font-size: 12px; }
+  .comparison-table th, .comparison-table td { padding: 12px 14px; }
+}
+
+/* =============================================
+   PRINT
+   ============================================= */
+
+@media print {
+  body { background: white; color: black; }
+  body::before, body::after { display: none; }
+  .container { max-width: 100%; padding: 20px; }
+  .compare-card, .feature, .product, .flow, .quickstart, .comparison-table {
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: none;
+  }
+  pre.code, .quickstart-code {
+    background: #f4f4f4;
+    color: black;
+  }
+  h1.title, h2, h3, .product-name, .step-title { color: black; }
+  .tagline, .section-intro, .feature p, .compare-points li { color: #444; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ============================================ HEADER ============================================ -->
+  <header class="hero">
+    <div class="poster-meta">
+      <span>Open Source</span>
+      <span class="dot"></span>
+      <span>MIT License</span>
+      <span class="dot"></span>
+      <span>v1.0.0</span>
+      <span class="meta-tag">Technical Poster</span>
+    </div>
+
+    <div class="hero-grid">
+      <div>
+        <h1 class="title">m365apps<span class="accent">-deploy</span></h1>
+        <p class="tagline">A production-ready toolkit for deploying Microsoft 365 Apps for Enterprise, Visio, Project, and language packs through Microsoft Intune.</p>
+        <p class="subtagline">Three commands<span class="pipe">/</span>No XML editing<span class="pipe">/</span>Four products</p>
+
+        <div class="tech-badges">
+          <span class="badge primary"><span class="dot"></span>PowerShell 5.1+</span>
+          <span class="badge"><span class="dot"></span>Intune Ready</span>
+          <span class="badge"><span class="dot"></span>ODT-based</span>
+          <span class="badge"><span class="dot"></span>Win32 app</span>
+          <span class="badge"><span class="dot"></span>Multi-language</span>
+        </div>
+      </div>
+
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="num">3</div>
+          <div class="label">Commands to Build</div>
+        </div>
+        <div class="hero-stat">
+          <div class="num">4</div>
+          <div class="label">Products Packaged</div>
+        </div>
+        <div class="hero-stat secondary">
+          <div class="num">113</div>
+          <div class="label">Language Packs</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+  <!-- ============================================ QUICK START ============================================ -->
+  <section>
+    <div class="quickstart">
+      <div class="quickstart-content">
+        <h2>Quick start.</h2>
+        <p>Clone, fetch the toolchain, build. Three commands take you from empty directory to .intunewin packages ready for Intune. Four products, every Microsoft-supported language, no per-organization edits required.</p>
+        <div class="quickstart-meta">
+          <span class="pulse"></span>
+          <span>WORKS OUT OF THE BOX</span>
+        </div>
+      </div>
+
+      <div class="quickstart-code">
+        <div class="line"><span class="num">1</span><span class="prompt">$</span> <span class="cmd">git clone</span> <span class="arg">https://github.com/haakonwibe/m365apps-deploy.git</span></div>
+        <div class="line"><span class="num">2</span><span class="prompt">$</span> <span class="cmd">.\Source\Update-Tooling.ps1</span></div>
+        <div class="line"><span class="num">3</span><span class="prompt">$</span> <span class="cmd">.\Build\Build-IntuneWinPackages.ps1</span></div>
+        <div class="line"><span class="num">&nbsp;</span><span class="comment"># 4 packages + 113 detection scripts</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ COMPARISON ============================================ -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">// 01</span>
+      <h2>Built differently.</h2>
+    </div>
+
+    <div class="compare-grid">
+      <div class="compare-card bad">
+        <div class="compare-header">
+          <span class="icon">×</span>
+          <span>ODT examples or OCT</span>
+        </div>
+        <pre class="code"><span class="comment"># Start from an ODT sample or generate at config.office.com</span>
+<span class="comment"># Wrap as Win32 yourself, write detection per language</span>
+<span class="comment"># OCT exposes every option, easy to break compatibility</span>
+<span class="comment"># Repeat the wrap-and-detect dance for each product</span>
+
+<span class="muted">&lt;Setup Name=</span><span class="string">"Company"</span> <span class="muted">Value=</span><span class="string">"Your Company"</span><span class="muted">/&gt;</span>
+<span class="comment"># Will this placeholder survive review?</span>
+<span class="comment"># Channel still logged as raw CDN URL:</span>
+<span class="comment"># officecdn.microsoft.com/pr/55336b82-...</span></pre>
+        <ul class="compare-points">
+          <li>Start from a Microsoft sample or OCT export, then go solo</li>
+          <li>Detection scripts by hand, one per language</li>
+          <li>OCT's option sprawl invites incompatible combos</li>
+          <li>Cryptic channel GUIDs in every log line</li>
+        </ul>
+      </div>
+
+      <div class="compare-card good">
+        <div class="compare-header">
+          <span class="icon">✓</span>
+          <span>m365apps-deploy</span>
+        </div>
+        <pre class="code"><span class="comment"># One command to build them all</span>
+
+<span class="prompt">PS&gt;</span> <span class="keyword">.\Build\Build-IntuneWinPackages.ps1</span>
+
+<span class="muted">[+]</span> <span class="var">Tokens resolved:</span> CompanyName, ExcludedApps
+<span class="muted">[+]</span> <span class="var">Channel:</span> MonthlyEnterprise
+<span class="muted">[+]</span> <span class="var">ExcludedApps:</span> 7 (default set)
+<span class="muted">[+]</span> <span class="var">Detection scripts:</span> 113 generated
+<span class="muted">[+]</span> <span class="var">Products packaged:</span> 4
+<span class="muted">[+]</span> <span class="var">Tests:</span> 111/111 passing
+<span class="muted">[+]</span> <span class="var">Output:</span> Build\Output\</pre>
+        <ul class="compare-points">
+          <li>Customize via CLI flags or one config file, no XML edits</li>
+          <li>113 per-language detection scripts auto-generated</li>
+          <li>Symmetric install and uninstall for every product</li>
+          <li>111 Pester tests run before every tagged release</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ FEATURES ============================================ -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">// 02</span>
+      <h2>Why this toolkit.</h2>
+    </div>
+
+    <div class="feature-grid">
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        </div>
+        <h3>Iterate without uploads</h3>
+        <p><code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">Build\Staging\</code> is exactly what unpacks on the client. Copy it onto a test VM and run install, uninstall, or detection scripts directly. No <code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">.intunewin</code> rebuild, no Intune upload, no ESP wait. Fix a bug and rerun in seconds.</p>
+        <span class="feature-meta">Build\Staging\ // Mirror of the client</span>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <h3>Refresh the toolchain</h3>
+        <p><code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">Update-Tooling.ps1</code> grabs the latest <code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">setup.exe</code> and <code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">IntuneWinAppUtil.exe</code>, and verifies each is Microsoft-signed via Authenticode. Manifest tracks source URLs and timestamps.</p>
+        <span class="feature-meta">Authenticode verified // Manifest tracked</span>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10z"/></svg>
+        </div>
+        <h3>113 Language Packs</h3>
+        <p>Every Microsoft-supported Office language has an auto-generated detection script. One <code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">.intunewin</code> package, deployed per language with a parameter. AST-aware build keeps the detection logic single-sourced.</p>
+        <span class="feature-meta">af-za through zu-za // Full coverage</span>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg>
+        </div>
+        <h3>Customize at build time</h3>
+        <p>Set <code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">CompanyName</code>, exclude apps you don't ship (Access, Bing, Teams, OneDrive, whatever you want), pick a channel. All from CLI flags or one <code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">build-config.json</code>. No source XML edits.</p>
+        <span class="feature-meta">ExcludedApps // Build-time tokens</span>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.36-2.64L3 21"/><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 3"/><polyline points="21 3 21 9 15 9"/><polyline points="3 21 3 15 9 15"/></svg>
+        </div>
+        <h3>Add or Remove, Anytime</h3>
+        <p>Every product ships with matching install, uninstall, and detection. Add a language to a user group, retire a product, scale to a new region. Reversible through Intune assignments alone, no rebuilds.</p>
+        <span class="feature-meta">Symmetric pipelines // No rebuilds</span>
+      </div>
+
+      <div class="feature">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </div>
+        <h3>CMTrace-ready logs</h3>
+        <p>Every install, uninstall, and detection writes CMTrace-formatted lines to one folder: <code style="font-family:'JetBrains Mono',monospace;color:var(--accent-2);font-size:0.9em;">C:\ProgramData\M365AppsDeploy\Logs\</code>. Open in CMTrace or OneTrace from your SCCM/MDT toolset — no log-format hunting.</p>
+        <span class="feature-meta">ConfigMgr/Intune-friendly // One log root</span>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============================================ FLOW ============================================ -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">// 03</span>
+      <h2>How it works.</h2>
+    </div>
+    <p class="section-intro">What happens between your source XMLs and a device with Office on it. Each on-disk stage lives in the repo, ready to inspect.</p>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="step-num">01</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
+        </div>
+        <div class="step-title">Source XMLs</div>
+        <div class="step-desc">Configurations<br>+ tokens</div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">02</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </div>
+        <div class="step-title">Build engine</div>
+        <div class="step-desc">Token<br>substitution</div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">03</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="step-title">Staging</div>
+        <div class="step-desc">Mirror of<br>client layout</div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">04</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6h-6z"/></svg>
+        </div>
+        <div class="step-title">IntuneWinAppUtil</div>
+        <div class="step-desc">.intunewin<br>packaging</div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">05</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </div>
+        <div class="step-title">Output</div>
+        <div class="step-desc">Upload-ready<br>artifacts</div>
+      </div>
+
+      <div class="flow-step">
+        <div class="step-num">06</div>
+        <div class="step-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div class="step-title">Intune</div>
+        <div class="step-desc">Deployed<br>devices</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ COMPARISON TABLE ============================================ -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">// 04</span>
+      <h2>vs. the alternatives.</h2>
+    </div>
+    <p class="section-intro">m365apps-deploy is built for organizations that want a single, tested, repeatable build pipeline rather than copy-pasting templates.</p>
+
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>ODT example XML</th>
+          <th>Office Customization Tool</th>
+          <th class="highlight">m365apps-deploy</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Multi-product build</td>
+          <td><span class="x">×</span>Manual per product</td>
+          <td><span class="x">×</span>Generates XML only</td>
+          <td class="win"><span class="check">✓</span>Four products, one build</td>
+        </tr>
+        <tr>
+          <td>Per-language detection</td>
+          <td><span class="x">×</span>Hand-written</td>
+          <td><span class="x">×</span>Not provided</td>
+          <td class="win"><span class="check">✓</span>113 auto-generated</td>
+        </tr>
+        <tr>
+          <td>Org customization</td>
+          <td><span class="x">×</span>Edit XMLs in place</td>
+          <td><span class="x">×</span>Re-export each time</td>
+          <td class="win"><span class="check">✓</span>CLI flags + config file</td>
+        </tr>
+        <tr>
+          <td>Channel logging</td>
+          <td><span class="x">×</span>Raw CDN URLs</td>
+          <td><span class="x">×</span>No logging layer</td>
+          <td class="win"><span class="check">✓</span>CMTrace-ready, friendly channel names</td>
+        </tr>
+        <tr>
+          <td>Add/remove lifecycle</td>
+          <td><span class="x">×</span>Install only, by hand</td>
+          <td><span class="x">×</span>Configuration only</td>
+          <td class="win"><span class="check">✓</span>Symmetric install + uninstall</td>
+        </tr>
+        <tr>
+          <td>Browsable artifacts</td>
+          <td><span class="x">×</span>XML only, no scripts</td>
+          <td><span class="x">×</span>Download XML each time</td>
+          <td class="win"><span class="check">✓</span>Committed for GitHub</td>
+        </tr>
+        <tr>
+          <td>Toolchain refresh</td>
+          <td><span class="x">×</span>Manual + unverified</td>
+          <td><span class="x">×</span>Manual + unverified</td>
+          <td class="win"><span class="check">✓</span>One command, signature-verified</td>
+        </tr>
+        <tr>
+          <td>Build verification</td>
+          <td><span class="x">×</span>Trial-and-error in Intune</td>
+          <td><span class="x">×</span>Trial-and-error in Intune</td>
+          <td class="win"><span class="check">✓</span>111 tests on every tag</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============================================ PRODUCTS ============================================ -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">// 05</span>
+      <h2>Four products. One build.</h2>
+    </div>
+    <p class="section-intro">Every product follows the same pattern: install, uninstall, and detection scripts driven by ODT, packaged as a Win32 app, with per-product configuration XMLs.</p>
+
+    <div class="products">
+      <div class="product">
+        <div class="product-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+        </div>
+        <div class="product-name">Microsoft 365 Apps</div>
+        <div class="product-meta">Word · Excel · PowerPoint</div>
+      </div>
+
+      <div class="product">
+        <div class="product-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6"/><path d="M9 18h6"/><path d="M6 9v6"/><path d="M18 9v6"/></svg>
+        </div>
+        <div class="product-name">Visio</div>
+        <div class="product-meta">Add-on // matches Office</div>
+      </div>
+
+      <div class="product">
+        <div class="product-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 3h7l1 4h7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 14h8"/><path d="M8 11h6"/></svg>
+        </div>
+        <div class="product-name">Project</div>
+        <div class="product-meta">Add-on // matches Office</div>
+      </div>
+
+      <div class="product">
+        <div class="product-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>
+        </div>
+        <div class="product-name">Language Packs</div>
+        <div class="product-meta">Per-language deployment</div>
+        <span class="product-count">113 LANGUAGES</span>
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- ============================================ FOOTER ============================================ -->
+  <footer class="footer">
+    <a href="https://github.com/haakonwibe/m365apps-deploy" class="footer-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      <span>github.com/haakonwibe/m365apps-deploy</span>
+      <span class="arrow">↗</span>
+    </a>
+
+    <div class="footer-attrib">
+      Created by <strong>Haakon Wibe</strong> · Digital Workplace Architect
+    </div>
+
+    <div class="footer-version">v1.0.0 · MIT</div>
+  </footer>
+
+</div>
+
+</body>
+</html>

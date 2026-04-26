@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  visio-remove.xml
+  Removes VisioProRetail only. Leaves Microsoft 365 Apps and Project installed.
+  Uses <Remove All="FALSE"> with an explicit Product ID so ODT does not touch
+  anything else registered under ClickToRun.
+-->
+<Configuration ID="visio-remove">
+
+  <Remove All="FALSE">
+    <Product ID="VisioProRetail" />
+  </Remove>
+
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  m365apps-removeall.xml
+  Removes every Click-to-Run Office product installed on the device, including
+  Visio and Project. Use with Uninstall-M365Apps.ps1.
+
+  Only use this when you want a full wipe; to remove Office while leaving
+  Visio / Project installed, write a scoped <Remove> block instead (see
+  Visio/Configurations/visio-remove.xml for the pattern).
+-->
+<Configuration ID="m365apps-removeall">
+
+  <Remove All="TRUE" />
+
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

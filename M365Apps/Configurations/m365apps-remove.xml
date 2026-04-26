@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  m365apps-remove.xml (surgical - DEFAULT)
+  Removes ONLY the Microsoft 365 Apps core product (O365ProPlusRetail) plus
+  any installed Language Pack accessories. Leaves Visio, Project, and any
+  other Click-to-Run products untouched.
+
+  Language elements are intentionally omitted: per Microsoft's ODT
+  documentation, "To remove all the installed languages, don't include
+  the language attribute. In that case, the ODT automatically discovers
+  and removes all installed languages for the product."
+  https://learn.microsoft.com/microsoft-365-apps/deploy/office-deployment-tool-configuration-options#remove-element
+
+  LanguagePack (Microsoft's product-agnostic pseudo-product for language
+  accessories installed via Install-LanguagePack.ps1) is listed as a
+  second Product so orphaned language-pack registry entries are cleaned
+  up alongside the core Office install. Language-adds that were attached
+  to Visio / Project directly (e.g. VisioProRetail + nb-no) are registered
+  under the Visio / Project product keys and are NOT touched here.
+
+  For a full C2R wipe (everything, including Visio / Project / engine),
+  use Uninstall-M365Apps.ps1 -RemoveAll which switches to
+  m365apps-removeall.xml with <Remove All="TRUE"/>.
+-->
+<Configuration ID="m365apps-remove">
+
+  <Remove>
+    <Product ID="O365ProPlusRetail" />
+    <Product ID="LanguagePack" />
+  </Remove>
+
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

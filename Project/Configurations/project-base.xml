@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  project-base.xml
+  Adds Project Professional (ProjectProRetail) on top of an existing M365 Apps
+  install.
+
+  Like Visio, Project is an add-on: Channel and OfficeClientEdition must match
+  the existing Office install. en-us is the broadest language baseline; see
+  docs/language-matrix.md for Project-supported languages.
+
+  For Project Standard, replace ProjectProRetail with ProjectStdRetail.
+
+  Build-time tokens (resolved by Build\Build-IntuneWinPackages.ps1):
+    CompanyName  OPTIONAL. Set via -CompanyName or build-config.json.
+                 If unset, the <Setup Name="Company" .../> line is
+                 removed during staging and Company is not applied.
+-->
+<Configuration ID="project-base">
+
+  <Add OfficeClientEdition="64" Channel="MonthlyEnterprise" MigrateArch="TRUE" AllowCdnFallback="TRUE">
+    <Product ID="ProjectProRetail">
+      <Language ID="en-us" />
+    </Product>
+  </Add>
+
+  <Property Name="SharedComputerLicensing" Value="0" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+  <Property Name="AUTOACTIVATE" Value="0" />
+
+  <Updates Enabled="TRUE" />
+
+  <AppSettings>
+    <Setup Name="Company" Value="{{CompanyName}}" />
+  </AppSettings>
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

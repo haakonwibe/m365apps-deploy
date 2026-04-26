@@ -1,0 +1,86 @@
+# ==========================================================================
+# Microsoft binaries (license / distribution concerns)
+# ==========================================================================
+# Office Deployment Tool - shared source used by Build-IntuneWinPackages.ps1
+Source/setup.exe
+# Intune Win32 Content Prep Tool (download from microsoft/Microsoft-Win32-Content-Prep-Tool)
+Build/IntuneWinAppUtil.exe
+# setup.exe wherever it lands - both the build-pipeline staged copy under
+# Build/Staging/<Product>/Tools/ and the optional per-product source-tree
+# override at <Product>/Tools/setup.exe.
+**/Tools/setup.exe
+
+# ==========================================================================
+# Binary build artefacts (no value as committed text)
+# ==========================================================================
+Build/Output/**/*.intunewin
+
+# ==========================================================================
+# Per-fork build configuration (org-specific token values)
+# build-config.example.json is committed as the template; build-config.json
+# is the local copy that holds real values like CompanyName.
+# ==========================================================================
+build-config.json
+
+# ==========================================================================
+# Tooling manifest written by Source\Update-Tooling.ps1
+# Records local-state metadata (versions, source URLs, downloadedAt
+# timestamps) for the Microsoft binaries that aren't themselves committed.
+# Changes per run; describes binaries this fork's clone doesn't carry.
+# ==========================================================================
+Source/tooling-versions.json
+
+# ==========================================================================
+# Browsable build outputs (intentionally COMMITTED so the deployed-package
+# layout is readable on GitHub without a clone-and-build):
+#   Build/Staging/<Product>/   - scripts + Configurations\ + Common\
+#                                (mirrors what Intune extracts on a client)
+#   Build/Output/<Product>/    - IntuneConfig.md + DetectionScripts\
+#                                (admin-facing upload artefacts)
+# Only the binaries above (.intunewin, setup.exe) are excluded.
+# ==========================================================================
+
+# ==========================================================================
+# Local log output (lab / test logs are not committed)
+# ==========================================================================
+Logs/
+*.log
+!docs/**/*.log
+
+# ==========================================================================
+# PowerShell / Pester
+# ==========================================================================
+TestResults.xml
+coverage.xml
+*.Tests.PesterResults.xml
+
+# ==========================================================================
+# Editors / IDEs / Agents
+# ==========================================================================
+.vscode/
+.vs/
+*.suo
+*.user
+*.userprefs
+.idea/
+*.code-workspace
+.claude/
+
+# ==========================================================================
+# OS metadata
+# ==========================================================================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+$RECYCLE.BIN/
+
+# ==========================================================================
+# Temp / local
+# ==========================================================================
+*.tmp
+*.bak
+*.swp
+*~
+.local/
+local/
