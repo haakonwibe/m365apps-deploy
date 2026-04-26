@@ -8,6 +8,10 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
 
+[![m365apps-deploy poster](site/poster.png)](https://haakonwibe.github.io/m365apps-deploy/)
+
+> 🌐 Live interactive version: <https://haakonwibe.github.io/m365apps-deploy/>
+
 ---
 
 ## 🎯 Why this exists
