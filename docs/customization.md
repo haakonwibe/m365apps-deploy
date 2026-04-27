@@ -25,10 +25,28 @@ Replace `en-us` with your primary language:
 </Product>
 ```
 
-**Do not** add multiple `<Language>` elements here — this XML is the
-**base** install. Add extra UI languages as separate Win32 apps via the
-`LanguagePacks/` workflow, so user groups only receive the languages they
-need.
+Then rebuild so the change propagates to `Build/Staging/M365Apps/`
+and the `.intunewin` package:
+
+```powershell
+.\Build\Build-IntuneWinPackages.ps1
+```
+
+Re-upload `Build\Output\M365Apps\Install-M365Apps.intunewin` to Intune
+when you next deploy.
+
+**Visio and Project follow automatically.** Neither has a hard-coded
+default language to change — their install scripts read the live
+device's `ClientCulture` value from the Click-to-Run registry at
+install time, look up the matching language for the add-on product in
+`Common/ODTLanguages.psm1`, and inject it into the staged XML before
+launching `setup.exe`. Change M365 Apps once and Visio / Project pick
+up the new language automatically when they install on top.
+
+**Do not** add multiple `<Language>` elements to the base XML — this
+XML is the **base** install, single language by design. Add extra UI
+languages as separate Win32 apps via the `LanguagePacks/` workflow,
+so user groups only receive the languages they need.
 
 ## 2. Update channel
 
