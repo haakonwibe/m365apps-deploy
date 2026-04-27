@@ -367,6 +367,10 @@ if ([string]::IsNullOrEmpty($SetupExePath)) {
 }
 ```
 
+For a local recipe that reproduces this without an Intune round-trip,
+see [`docs/local-testing.md` → Simulating Intune's SYSTEM context with
+PsExec](local-testing.md#simulating-intunes-system-context-with-psexec).
+
 **Enforced by**: `Tests\Pester\ParamBlockHygiene.Tests.ps1` — AST
 inspection of every Install/Uninstall script's param block.
 

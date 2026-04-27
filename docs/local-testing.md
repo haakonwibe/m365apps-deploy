@@ -144,6 +144,69 @@ Back on the host, revert via your hypervisor's snapshot mechanism
 Each iteration is snapshot → copy → run → inspect → revert. No
 Intune round-trip, no waiting for ESP, no content delivery delays.
 
+## Simulating Intune's SYSTEM context with PsExec
+
+The lab-VM workflow above runs install scripts as **the logged-on
+elevated user**. That covers most iteration but doesn't reproduce
+Intune's actual execution context, where the Intune Management
+Extension launches install commands as **SYSTEM** with `-File <script>`.
+Some classes of issue only surface under SYSTEM:
+
+- `$PSScriptRoot`-in-param-defaults edge cases (rule #2 in
+  [`architecture.md`](architecture.md#2-param-defaults-must-not-reference-psscriptroot))
+  — the script binds an empty path and exits 1 with no log
+- Anything that depends on SYSTEM identity vs. user identity (file
+  ACLs, `%TEMP%` redirection to the SYSTEM profile, `$env:USERNAME`,
+  certain Windows APIs)
+
+[PsExec](https://learn.microsoft.com/sysinternals/downloads/psexec)
+(Sysinternals) launches a process as SYSTEM via `-s`, optionally
+attached to the current desktop via `-i`. This is the closest
+local proxy to how IME launches install commands.
+
+### Recipe
+
+After staging and copying `M365Apps\` to `C:\Temp\` on the VM, from
+an elevated PowerShell prompt:
+
+```powershell
+# Most-faithful recipe (interactive SYSTEM, mirrors IME's launch):
+psexec64 -s -i powershell.exe -NoProfile -ExecutionPolicy Bypass `
+    -File C:\Temp\M365Apps\Install-M365Apps.ps1
+```
+
+The interactive PsExec window closes immediately on script exit,
+which makes failures hard to read. To capture stderr to a file you
+can inspect afterwards:
+
+```powershell
+psexec64 -s cmd.exe /c `
+    "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Temp\M365Apps\Install-M365Apps.ps1 > C:\Temp\install-system.log 2>&1"
+type C:\Temp\install-system.log
+```
+
+### Limitations — what PsExec -s does NOT simulate
+
+The recipe gives you SYSTEM identity but **not** the Intune
+Management Extension's full execution environment:
+
+- **Bitness**: PsExec spawns 64-bit processes on 64-bit Windows. IME
+  is itself a 32-bit binary (`C:\Program Files (x86)\Microsoft Intune
+  Management Extension\`) and spawns 32-bit children. The
+  WOW6432 registry-redirection class of issue (rule #3 in
+  [`architecture.md`](architecture.md#3-registry-reads-must-use-the-explicit-64-bit-view))
+  is **not caught** by this recipe. The toolkit guards against it
+  statically via `Tests\Pester\RegistryAccessHygiene.Tests.ps1`.
+- **AppLocker / WDAC** policies that gate IME-launched scripts
+- **MOTW** on files extracted from the `.intunewin` payload by IME
+- **IME's specific working-directory + stdio handling**
+
+For full-fidelity validation, the canonical test is a **real Intune
+deployment** to a disposable VM — Autopilot ESP if you want to test
+the full first-sign-in flow, or a manual Win32 app assignment to a
+non-Autopilot test device. See
+[`intune-deployment.md`](intune-deployment.md) for the upload procedure.
+
 ## Running the end-to-end harness against the staged layout
 
 `Tests\Invoke-DeploymentTest.ps1` can drive the full install → detect
