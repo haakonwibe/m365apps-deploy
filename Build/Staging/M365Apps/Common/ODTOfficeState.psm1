@@ -20,7 +20,7 @@
 .NOTES
     Module  : ODTOfficeState
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 
 Set-StrictMode -Version Latest
@@ -151,11 +151,14 @@ function Get-OfficeConfiguration {
 
     # ClickToRun\Configuration\ProductReleaseIds sub-key holds per-language
     # enumerations; additional installed UI languages show up as value names.
+    # The BCP-47 pattern admits 3-letter primaries (chr-cher-us, prs-af) and
+    # script-tag languages (az-latn-az, sr-latn-rs) — narrower regexes silently
+    # truncate multi-lingual installs that include those tags.
     $sub = Get-Registry64Item -Path 'SOFTWARE\Microsoft\Office\ClickToRun\Configuration\ProductReleaseIds'
     if ($null -ne $sub) {
         foreach ($prop in $sub.PSObject.Properties) {
             if ($prop.Name -notmatch '^(PS|Active|LastScenario)') {
-                if ($prop.Name -match '^[a-z]{2}-[a-z]{2}$') {
+                if ($prop.Name -match '^[a-z]{2,3}(-[a-z]{2,8}){1,3}$') {
                     $languages += $prop.Name
                 }
             }
@@ -210,10 +213,12 @@ function Get-InstalledLanguages {
 .DESCRIPTION
     Walks the 64-bit and 32-bit Uninstall hives looking for keys named
     '<ProductId> - <language>' (e.g. 'O365ProPlusRetail - nb-no'). This is
-    how C2R registers per-language sub-packages.
-
-    The primary UI language is also returned (from the Configuration key's
-    ClientCulture value).
+    how C2R registers per-language sub-packages, and the per-language keys
+    are the source of truth: the C2R installer creates one for every
+    installed language, including the primary culture. ClientCulture from
+    the Configuration registry isn't consulted here — it's a property of
+    the M365 Apps install, not of any specific ProductId, and conflating
+    the two led to a false-positive idempotency check fixed in v1.0.6.
 
 .PARAMETER ProductId
     Click-to-Run product release ID to enumerate languages for.
@@ -231,12 +236,6 @@ function Get-InstalledLanguages {
 
     $languages = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
-    # Primary culture from C2R configuration.
-    $config = Get-OfficeConfiguration
-    if ($null -ne $config -and $config.ClientCulture) {
-        [void]$languages.Add($config.ClientCulture)
-    }
-
     $pattern = "$ProductId - "
     $uninstallPaths = @(
         'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
@@ -246,7 +245,7 @@ function Get-InstalledLanguages {
         foreach ($leaf in (Get-Registry64SubKeyName -Path $root)) {
             if ($leaf -and $leaf.StartsWith($pattern, [System.StringComparison]::OrdinalIgnoreCase)) {
                 $lang = $leaf.Substring($pattern.Length).Trim()
-                if ($lang -match '^[a-z]{2}-[a-z]{2}$') {
+                if ($lang -match '^[a-z]{2,3}(-[a-z]{2,8}){1,3}$') {
                     [void]$languages.Add($lang.ToLowerInvariant())
                 }
             }
@@ -256,50 +255,131 @@ function Get-InstalledLanguages {
     return @($languages | Sort-Object)
 }
 
+function Get-LanguagePackInstallationStatus {
+<#
+.SYNOPSIS
+    Returns the per-product installation status of a language pack across
+    every currently installed Click-to-Run product on the machine.
+
+.DESCRIPTION
+    Iterates the products listed in ClickToRun\Configuration\ProductReleaseIds
+    and reports, per product, whether '<ProductId> - <LanguageID>' exists
+    in the Uninstall hive. The aggregate Installed flag is $true only when
+    every product has the language.
+
+    Why per-product rather than "is the language anywhere on this machine":
+    Microsoft's `Product ID="LanguagePack"` install spreads the language
+    across every installed product (creating per-product Uninstall keys
+    for each). A naive "language is installed somewhere" check would
+    false-positive when the language is present for the base product (e.g.
+    M365 Apps installed with -Language nb-no) but not for add-ons (Visio
+    or Project installed in en-us, no nb-no per-product key). The naive
+    check would skip Install-LanguagePack, leaving the add-on products
+    without nb-no rendering — the bug surfaced by v1.0.5 scenario 2 and
+    fixed in v1.0.6.
+
+    v1.0.7 promotes that per-product check from an internal bool computation
+    to a first-class structured result so the install/uninstall scripts can
+    log which products are present/missing — admins reading IME/CMTrace
+    logs see exactly why setup.exe ran (or didn't) and which products
+    gained/lost the language post-install.
+
+    The per-product check accepts whichever Uninstall-key shape ODT writes
+    for each product (the per-product '<ProductId> - <lang>' shape is what
+    Get-InstalledLanguages walks; the 'LanguagePack' pseudo-product, if
+    registered in ProductReleaseIds, gets the same treatment).
+
+.PARAMETER LanguageID
+    BCP-47 language code (e.g. 'nb-no', 'en-us').
+
+.OUTPUTS
+    [pscustomobject] with:
+        LanguageID  [string]                       - normalized to lower-case
+        Installed   [bool]                         - $true iff every product has the language
+        PerProduct  [System.Collections.Specialized.OrderedDictionary]
+                                                   - keyed on ProductId, value = $true|$false.
+                                                     Empty when no C2R config detected or
+                                                     ProductReleaseIds is empty.
+
+.EXAMPLE
+    $s = Get-LanguagePackInstallationStatus -LanguageID 'nb-no'
+    if (-not $s.Installed) {
+        $missing = $s.PerProduct.GetEnumerator() |
+            Where-Object { -not $_.Value } |
+            Select-Object -ExpandProperty Key
+        # ... run setup.exe to spread the LP to $missing ...
+    }
+#>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidatePattern('^[a-zA-Z]{2,3}(-[a-zA-Z]{2,8}){1,3}$')]
+        [string] $LanguageID
+    )
+
+    $normalized = $LanguageID.ToLowerInvariant()
+    $perProduct = [ordered]@{}
+
+    $config = Get-OfficeConfiguration
+    if ($null -eq $config) {
+        return [pscustomobject]@{
+            LanguageID = $normalized
+            Installed  = $false
+            PerProduct = $perProduct
+        }
+    }
+
+    $productIds = @($config.ProductReleaseIds)
+    if ($productIds.Count -eq 0) {
+        return [pscustomobject]@{
+            LanguageID = $normalized
+            Installed  = $false
+            PerProduct = $perProduct
+        }
+    }
+
+    $allInstalled = $true
+    foreach ($productId in $productIds) {
+        $langs   = Get-InstalledLanguages -ProductId $productId
+        $present = ($langs -icontains $normalized)
+        $perProduct[$productId] = $present
+        if (-not $present) { $allInstalled = $false }
+    }
+
+    return [pscustomobject]@{
+        LanguageID = $normalized
+        Installed  = $allInstalled
+        PerProduct = $perProduct
+    }
+}
+
 function Test-LanguagePackInstalled {
 <#
 .SYNOPSIS
-    Returns $true if a given language pack is installed.
+    Returns $true when the language pack is installed for EVERY currently
+    installed Click-to-Run product on the machine.
 
 .DESCRIPTION
-    Accepts either of the two observed Uninstall-key shapes:
-      - 'LanguagePack - <lang>'     (current, ODT writes this when the
-                                     install XML uses Product ID="LanguagePack")
-      - '<TargetProduct> - <lang>'  (legacy, seen when older templates used
-                                     the base product ID in the XML)
-
-    Checking both shapes keeps detection correct across any upgrade path.
+    Thin wrapper around Get-LanguagePackInstallationStatus, retained as a
+    convenience for callers that only need the bool answer. See the helper
+    function for the full per-product picture.
 
 .PARAMETER LanguageID
-    Language code in 'xx-yy' form (e.g. 'nb-no', 'en-us').
+    BCP-47 language code (e.g. 'nb-no', 'en-us').
 
-.PARAMETER TargetProduct
-    Product that the caller believes the language is associated with. Used
-    only as a legacy-shape fallback. Defaults to 'O365ProPlusRetail' so
-    simple callers can omit it.
+.OUTPUTS
+    [bool]
 #>
     [CmdletBinding()]
     [OutputType([bool])]
     param(
         [Parameter(Mandatory)]
-        [ValidatePattern('^[a-zA-Z]{2}-[a-zA-Z]{2}$')]
-        [string] $LanguageID,
-
-        [ValidateNotNullOrEmpty()]
-        [string] $TargetProduct = 'O365ProPlusRetail'
+        [ValidatePattern('^[a-zA-Z]{2,3}(-[a-zA-Z]{2,8}){1,3}$')]
+        [string] $LanguageID
     )
 
-    $normalized = $LanguageID.ToLowerInvariant()
-
-    # Current shape: "LanguagePack - <lang>"
-    $installedByLanguagePack = Get-InstalledLanguages -ProductId 'LanguagePack'
-    if ($installedByLanguagePack -contains $normalized) { return $true }
-
-    # Legacy shape: "<TargetProduct> - <lang>"
-    $installedByTarget = Get-InstalledLanguages -ProductId $TargetProduct
-    if ($installedByTarget -contains $normalized) { return $true }
-
-    return $false
+    return (Get-LanguagePackInstallationStatus -LanguageID $LanguageID).Installed
 }
 
 function Get-OfficeChannelName {
@@ -405,6 +485,7 @@ Export-ModuleMember -Function @(
     'Get-OfficeConfiguration',
     'Test-ProductInstalled',
     'Get-InstalledLanguages',
+    'Get-LanguagePackInstallationStatus',
     'Test-LanguagePackInstalled',
     'Get-OfficeChannelName',
     'Get-OfficeChannelGuid'

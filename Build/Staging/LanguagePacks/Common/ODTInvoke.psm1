@@ -32,7 +32,7 @@
 .NOTES
     Module  : ODTInvoke
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 
 Set-StrictMode -Version Latest

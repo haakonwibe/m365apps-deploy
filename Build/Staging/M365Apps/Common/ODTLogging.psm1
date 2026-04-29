@@ -22,7 +22,7 @@
 .NOTES
     Module   : ODTLogging
     Project  : m365apps-deploy
-    Version  : 1.0.0
+    Version  : <see Common/ODTVersion.psm1>
     See CHANGELOG.md for version history.
 #>
 
@@ -268,7 +268,7 @@ function Start-ODTLogSession {
         [Parameter(Mandatory)]
         [string] $ScriptName,
 
-        [string] $ScriptVersion = '1.0.0',
+        [string] $ScriptVersion = '<unknown>',
 
         [hashtable] $Parameters,
 

@@ -50,7 +50,7 @@
 .NOTES
     Script  : Update-Tooling.ps1
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 [CmdletBinding()]
 param(

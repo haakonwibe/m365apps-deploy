@@ -70,7 +70,7 @@
 .NOTES
     Script  : Uninstall-M365Apps.ps1
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 [CmdletBinding()]
 param(
@@ -92,7 +92,6 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ScriptName    = 'Uninstall-M365Apps'
-$ScriptVersion = '1.0.0'
 $LogFile       = 'M365Apps-Uninstall.log'
 $ProductId     = 'O365ProPlusRetail'
 
@@ -119,9 +118,12 @@ $commonPath = if (Test-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPa
     Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Common'
 }
 Import-Module (Join-Path $commonPath 'ODTLogging.psm1')       -Force
+Import-Module (Join-Path $commonPath 'ODTVersion.psm1')       -Force
 Import-Module (Join-Path $commonPath 'ODTPrerequisites.psm1') -Force
 Import-Module (Join-Path $commonPath 'ODTOfficeState.psm1')   -Force
 Import-Module (Join-Path $commonPath 'ODTInvoke.psm1')        -Force
+
+$ScriptVersion = Get-ToolkitVersion
 
 $sessionParams = @{
     ConfigurationFile      = $ConfigurationFile

@@ -46,6 +46,20 @@ Describe 'Get-DefaultBuildTokens' {
             $t[$name].Mode     | Should -Be 'Runtime'
         }
     }
+
+    It 'registers Language as a BuildTime scalar with Default = en-us and a placeholder KnownValues slot' {
+        # KnownValues is populated at orchestrator runtime from
+        # Get-ODTSupportedLanguages so Get-DefaultBuildTokens stays a pure
+        # function. Default is the load-bearing piece: 'en-us' substitutes
+        # into staged XML when the value is unset, instead of the
+        # CompanyName-style line-strip that would invalidate <Product>.
+        $t = Get-DefaultBuildTokens
+        $t.Contains('Language')  | Should -BeTrue
+        $t.Language.Mode         | Should -Be 'BuildTime'
+        $t.Language.Value        | Should -BeNullOrEmpty
+        $t.Language.Default      | Should -Be 'en-us'
+        $t.Language.Contains('KnownValues') | Should -BeTrue
+    }
 }
 
 Describe 'Invoke-XmlTokenSubstitution' {
@@ -174,6 +188,144 @@ Describe 'Invoke-XmlTokenSubstitution' {
         # leaves it on the line; the post-substitution scan must throw.
         { Invoke-XmlTokenSubstitution -Path $path -Tokens $tokens } |
             Should -Throw -ExpectedMessage "*unregistered token '{{ThisTokenDoesNotExist}}'*"
+    }
+}
+
+Describe 'BuildTime token: Language (scalar with Default + KnownValues)' {
+    # Language is the first BuildTime token to use the Default-fallback path
+    # (en-us substitutes when unset, instead of dropping the line) and the
+    # BuildTime KnownValues validator (typo'd tags fail the build).
+
+    It 'substitutes the Default value when Value is unset (does not drop the line)' {
+        $xml = @'
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+  <Add>
+    <Product ID="O365ProPlusRetail">
+      <Language ID="{{Language}}" />
+    </Product>
+  </Add>
+</Configuration>
+'@
+        $path = New-XmlFixture 'lang-default.xml' $xml
+        $tokens = Get-DefaultBuildTokens
+        # Value is $null, KnownValues unpopulated -> fall back to Default and skip validation.
+        $r = Invoke-XmlTokenSubstitution -Path $path -Tokens $tokens
+
+        $r.Substituted   | Should -Be 1
+        $r.LinesRemoved  | Should -Be 0
+
+        $doc = [xml](Get-Content -LiteralPath $path -Raw)
+        $doc.Configuration.Add.Product.Language.ID | Should -Be 'en-us'
+    }
+
+    It 'substitutes the explicit Value when set' {
+        $xml = @'
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+  <Add>
+    <Product ID="O365ProPlusRetail">
+      <Language ID="{{Language}}" />
+    </Product>
+  </Add>
+</Configuration>
+'@
+        $path = New-XmlFixture 'lang-override.xml' $xml
+        $tokens = Get-DefaultBuildTokens
+        $tokens.Language.Value = 'nb-no'
+        $r = Invoke-XmlTokenSubstitution -Path $path -Tokens $tokens
+
+        $r.Substituted | Should -Be 1
+        $doc = [xml](Get-Content -LiteralPath $path -Raw)
+        $doc.Configuration.Add.Product.Language.ID | Should -Be 'nb-no'
+    }
+
+    It 'falls back to Default when Value is set to an empty string' {
+        $xml = @'
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+  <Add>
+    <Product ID="O365ProPlusRetail">
+      <Language ID="{{Language}}" />
+    </Product>
+  </Add>
+</Configuration>
+'@
+        $path = New-XmlFixture 'lang-empty.xml' $xml
+        $tokens = Get-DefaultBuildTokens
+        $tokens.Language.Value = ''
+        $null = Invoke-XmlTokenSubstitution -Path $path -Tokens $tokens
+        $doc = [xml](Get-Content -LiteralPath $path -Raw)
+        $doc.Configuration.Add.Product.Language.ID | Should -Be 'en-us'
+    }
+
+    It 'falls back to Default when Value is whitespace-only' {
+        $xml = @'
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+  <Add>
+    <Product ID="O365ProPlusRetail">
+      <Language ID="{{Language}}" />
+    </Product>
+  </Add>
+</Configuration>
+'@
+        $path = New-XmlFixture 'lang-ws.xml' $xml
+        $tokens = Get-DefaultBuildTokens
+        $tokens.Language.Value = '   '
+        $null = Invoke-XmlTokenSubstitution -Path $path -Tokens $tokens
+        $doc = [xml](Get-Content -LiteralPath $path -Raw)
+        $doc.Configuration.Add.Product.Language.ID | Should -Be 'en-us'
+    }
+
+    It 'rejects an unknown Value when KnownValues is populated' {
+        $xml = @'
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+  <Add>
+    <Product ID="O365ProPlusRetail">
+      <Language ID="{{Language}}" />
+    </Product>
+  </Add>
+</Configuration>
+'@
+        $path = New-XmlFixture 'lang-typo.xml' $xml
+        $tokens = Get-DefaultBuildTokens
+        $tokens.Language.KnownValues = @('en-us','nb-no','de-de')
+        $tokens.Language.Value       = 'nb-NN'   # typo: capital NN
+        { Invoke-XmlTokenSubstitution -Path $path -Tokens $tokens } |
+            Should -Throw -ExpectedMessage "*'Language' value 'nb-NN' is not in the registered KnownValues*"
+    }
+
+    It 'accepts a Value present in the populated KnownValues set' {
+        $xml = @'
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+  <Add>
+    <Product ID="O365ProPlusRetail">
+      <Language ID="{{Language}}" />
+    </Product>
+  </Add>
+</Configuration>
+'@
+        $path = New-XmlFixture 'lang-good.xml' $xml
+        $tokens = Get-DefaultBuildTokens
+        $tokens.Language.KnownValues = @('en-us','nb-no','de-de')
+        $tokens.Language.Value       = 'nb-no'
+        { Invoke-XmlTokenSubstitution -Path $path -Tokens $tokens } | Should -Not -Throw
+
+        $doc = [xml](Get-Content -LiteralPath $path -Raw)
+        $doc.Configuration.Add.Product.Language.ID | Should -Be 'nb-no'
+    }
+
+    It 'real M365Apps source XML default-path build resolves Language to en-us' {
+        $src = Join-Path $script:RepoRoot 'M365Apps\Configurations\m365apps-base.xml'
+        $copy = Join-Path $script:WorkDir 'lang-real-default.xml'
+        Copy-Item -LiteralPath $src -Destination $copy -Force
+        $null = Invoke-XmlTokenSubstitution -Path $copy -Tokens (Get-DefaultBuildTokens)
+        $doc = [xml](Get-Content -LiteralPath $copy -Raw)
+        $doc.Configuration.Add.Product.Language.ID | Should -Be 'en-us' `
+            -Because 'a public-toolkit build with no -Language flag must produce the en-us baseline'
     }
 }
 
@@ -371,6 +523,36 @@ Describe 'ArrayExpansion token: ExcludedApps' {
         $defaults = Get-ArrayTokenDefaults -TokenName 'ExcludedApps' -TokenSpec $tokens.ExcludedApps -RepositoryRoot $script:RepoRoot
 
         $defaults | Should -Be @('Access','Bing','Groove','Lync','OneDrive','Publisher','Teams')
+    }
+}
+
+Describe 'Visio/Project base XML hardcodes en-us (no runtime LanguageID token)' {
+    # v1.0.5 makes Visio/Project base installs constant en-us. The
+    # {{LanguageID}} runtime token belongs to LanguagePacks/ only.
+    # If a future contributor re-introduces the runtime token in the
+    # Visio/Project source XMLs, or drops in MatchInstalled /
+    # MatchPreviousMSI, the toolkit's single-language-baseline principle
+    # for these products breaks.
+
+    It 'source <Path> uses literal <Language ID="en-us" />' -ForEach @(
+        @{ Path = 'Visio\Configurations\visio-base.xml' }
+        @{ Path = 'Project\Configurations\project-base.xml' }
+    ) {
+        $full    = Join-Path $script:RepoRoot $Path
+        $content = Get-Content -LiteralPath $full -Raw
+
+        $content | Should -Match '<Language ID="en-us"\s*/>' `
+            -Because 'Visio/Project install in en-us by design (v1.0.5)'
+
+        # Reject runtime token re-introduction.
+        $content | Should -Not -Match '\{\{LanguageID\}\}' `
+            -Because 'the LanguageID runtime token belongs only in LanguagePacks/Configurations/languagepack-template.xml'
+
+        # No Match* foot-guns either.
+        $content | Should -Not -Match '<Language ID="MatchInstalled"'
+        $content | Should -Not -Match '<Language ID="MatchPreviousMSI"'
+        $content | Should -Not -Match 'Version="MatchInstalled"'
+        $content | Should -Not -Match 'Version="MatchPreviousMSI"'
     }
 }
 

@@ -16,12 +16,12 @@
 .NOTES
     Script  : Uninstall-LanguagePack.ps1
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidatePattern('^[a-zA-Z]{2}(-[a-zA-Z]{2,8}){1,3}$')]
+    [ValidatePattern('^[a-zA-Z]{2,3}(-[a-zA-Z]{2,8}){1,3}$')]
     [string] $LanguageID,
 
     [ValidateSet('O365ProPlusRetail','VisioProRetail','VisioStdRetail','ProjectProRetail','ProjectStdRetail')]
@@ -40,7 +40,6 @@ $ErrorActionPreference = 'Stop'
 
 $LanguageID    = $LanguageID.ToLowerInvariant()
 $ScriptName    = 'Uninstall-LanguagePack'
-$ScriptVersion = '1.0.0'
 $LogFile       = ("LanguagePack-{0}-{1}-Uninstall.log" -f $TargetProduct, $LanguageID)
 
 # Body-time $PSScriptRoot is reliable; param-default-time is not under
@@ -59,9 +58,12 @@ $commonPath = if (Test-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPa
     Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Common'
 }
 Import-Module (Join-Path $commonPath 'ODTLogging.psm1')       -Force
+Import-Module (Join-Path $commonPath 'ODTVersion.psm1')       -Force
 Import-Module (Join-Path $commonPath 'ODTPrerequisites.psm1') -Force
 Import-Module (Join-Path $commonPath 'ODTOfficeState.psm1')   -Force
 Import-Module (Join-Path $commonPath 'ODTInvoke.psm1')        -Force
+
+$ScriptVersion = Get-ToolkitVersion
 
 $sessionParams = @{
     LanguageID             = $LanguageID
@@ -93,9 +95,22 @@ try {
         if (-not $prereq.AllPassed) { throw $prereq.Summary }
     }
 
-    if (-not (Test-LanguagePackInstalled -LanguageID $LanguageID -TargetProduct $TargetProduct)) {
-        Write-ODTLog -Message ("Language pack {0} for {1} is not installed; uninstall is a no-op." -f $LanguageID, $TargetProduct) -Severity 2 -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
-        $summary = 'Language pack not installed; nothing to do.'
+    # Per-installed-product status snapshot. The removal XML below targets
+    # <Product ID="$TargetProduct"> specifically (not the LanguagePack
+    # pseudo-product), so the skip decision is "does THIS TargetProduct
+    # carry the language?" rather than "is the language anywhere on the
+    # machine?" — the v1.0.6 aggregate Installed flag is the wrong question
+    # for uninstall.
+    $preStatus = Get-LanguagePackInstallationStatus -LanguageID $LanguageID
+    $preSummary = ($preStatus.PerProduct.GetEnumerator() | ForEach-Object {
+        "{0}={1}" -f $_.Key, $(if ($_.Value) { 'installed' } else { 'missing' })
+    }) -join ', '
+    if ([string]::IsNullOrWhiteSpace($preSummary)) { $preSummary = '<no Click-to-Run products detected>' }
+    Write-ODTLog -Message ("Language pack '{0}' status: {1}." -f $LanguageID, $preSummary) -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
+
+    if (-not $preStatus.PerProduct.Contains($TargetProduct) -or -not $preStatus.PerProduct[$TargetProduct]) {
+        Write-ODTLog -Message ("Language pack '{0}' is not installed for {1}; uninstall is a no-op for this target." -f $LanguageID, $TargetProduct) -Severity 2 -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
+        $summary = 'Language pack not installed for the requested target product; nothing to do.'
         return
     }
 
@@ -118,6 +133,7 @@ try {
 
     $setupPath = Resolve-ODTSetupPath -SetupExePath $SetupExePath -UseEvergreen:$UseEvergreenSetup
 
+    Write-ODTLog -Message ("Removing language pack: '{0}' from {1}." -f $LanguageID, $TargetProduct) -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
     Write-ODTLog -Message 'Starting setup.exe /configure (removal).' -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
     $result = Invoke-ODTSetup -SetupExePath $setupPath -ConfigurationPath $renderedPath
 
@@ -130,11 +146,22 @@ try {
         throw $summary
     }
 
-    # Post-uninstall verification (silent-failure catch). Test-LanguagePackInstalled
-    # uses Registry64 helpers — see rule #3 in docs/architecture.md.
-    if (Test-LanguagePackInstalled -LanguageID $LanguageID -TargetProduct $TargetProduct) {
+    # Post-uninstall verification: re-snapshot per-product status. Logged
+    # for admin visibility (so the log shows the exact before/after diff
+    # — products from which the language was removed read 'removed' here)
+    # and used to detect silent setup.exe failures targeting the
+    # TargetProduct specifically. Get-LanguagePackInstallationStatus uses
+    # Registry64 helpers — see rule #3 in docs/architecture.md.
+    $postStatus = Get-LanguagePackInstallationStatus -LanguageID $LanguageID
+    $postSummary = ($postStatus.PerProduct.GetEnumerator() | ForEach-Object {
+        "{0}={1}" -f $_.Key, $(if ($_.Value) { 'still installed' } else { 'removed' })
+    }) -join ', '
+    if ([string]::IsNullOrWhiteSpace($postSummary)) { $postSummary = '<no Click-to-Run products detected>' }
+    Write-ODTLog -Message ("Post-uninstall language pack status: {0}." -f $postSummary) -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
+
+    if ($postStatus.PerProduct.Contains($TargetProduct) -and $postStatus.PerProduct[$TargetProduct]) {
         $exit = 17002
-        $summary = "setup.exe returned 0 but language pack '$LanguageID' for $TargetProduct is still present. Treating as silent failure."
+        $summary = ("setup.exe returned 0 but language pack '{0}' is still present for {1}. Treating as silent failure." -f $LanguageID, $TargetProduct)
         Write-ODTLog -Message $summary -Severity 3 -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
         throw $summary
     }

@@ -13,40 +13,48 @@ from most-commonly-changed to least.
 
 ## 1. Primary Office UI language
 
-**File**: `M365Apps/Configurations/m365apps-base.xml`
+**Token**: `Language` (build-time scalar — see [Section 4](#4-org-specific-values-via-build-time-tokens)).
 
-Replace `en-us` with your primary language:
-
-```xml
-<Product ID="O365ProPlusRetail">
-  <Language ID="nb-no" />    <!-- was en-us -->
-  <ExcludeApp ID="Groove" />
-  ...
-</Product>
-```
-
-Then rebuild so the change propagates to `Build/Staging/M365Apps/`
-and the `.intunewin` package:
+Set the primary Microsoft 365 Apps UI language via CLI flag or
+`build-config.json` — no XML edit required:
 
 ```powershell
-.\Build\Build-IntuneWinPackages.ps1
+.\Build\Build-IntuneWinPackages.ps1 -Language nb-no
 ```
+
+Or persisted across every build (`build-config.json` is gitignored;
+copy from `build-config.example.json`):
+
+```json
+{ "Language": "nb-no" }
+```
+
+Unset / null / empty falls back to **`en-us`** (the toolkit baseline).
+The build engine validates the value against the Microsoft 365 Apps
+language matrix in `Common/ODTLanguages.psm1` and fails loudly on
+typos before staging — no more "Language not available" surprises at
+install time.
 
 Re-upload `Build\Output\M365Apps\Install-M365Apps.intunewin` to Intune
 when you next deploy.
 
-**Visio and Project follow automatically.** Neither has a hard-coded
-default language to change — their install scripts read the live
-device's `ClientCulture` value from the Click-to-Run registry at
-install time, look up the matching language for the add-on product in
-`Common/ODTLanguages.psm1`, and inject it into the staged XML before
-launching `setup.exe`. Change M365 Apps once and Visio / Project pick
-up the new language automatically when they install on top.
+**Scope of the `Language` token: Microsoft 365 Apps only.** Visio
+and Project base installs are always en-US — independent of the
+`Language` token, independent of the base Microsoft 365 Apps culture.
+Additional UI languages for Visio / Project ship as separate Win32
+apps via the `LanguagePacks/` workflow on top of the en-US base, the
+same model the toolkit uses for M365 Apps's non-primary languages.
+One base install per product, one canonical mechanism for adding
+languages on top. See [`docs/language-matrix.md`](language-matrix.md#why-we-do-not-use-matchinstalled)
+for the rationale.
 
-**Do not** add multiple `<Language>` elements to the base XML — this
-XML is the **base** install, single language by design. Add extra UI
+**The `Language` token is scalar by design** — the toolkit installs
+**one** base UI language for M365 Apps and ships additional UI
 languages as separate Win32 apps via the `LanguagePacks/` workflow,
-so user groups only receive the languages they need.
+so user groups only receive the languages they need. The token
+registration enforces this: there is no `Languages` (plural) array.
+If you find yourself wanting to multi-Language the base XML by hand,
+you almost certainly want the `LanguagePacks/` workflow instead.
 
 ## 2. Update channel
 
@@ -125,6 +133,7 @@ even on a freshly forked toolkit you build with no flags.
 | Token          | Mode              | XML element controlled                                                                                                                                         | Effect when unset / null                                                                                                                            |
 |----------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `CompanyName`  | `BuildTime` (scalar)        | `<Setup Name="Company" Value="..."/>` in M365 Apps / Visio / Project base XMLs. Controls the "registered to" string in Office's Account pane.                 | The `<Setup>` line is dropped during staging; if the surrounding `<AppSettings>` block becomes empty, it is stripped too.                          |
+| `Language`     | `BuildTime` (scalar)        | `<Language ID="..."/>` inside the `<Product>` block of `M365Apps/Configurations/m365apps-base.xml`. Single tag (one base UI language, by design). Validated against the Microsoft 365 Apps language matrix at build time; typo'd codes fail the build. | Falls back to the registered default `en-us` (substituted into the staged XML). *The "line stripped" semantic does NOT apply* — `<Product>` requires a `<Language>` child. |
 | `ExcludedApps` | `ArrayExpansion`  | The default `<ExcludeApp>` set inside the `<Product>` block of `M365Apps/Configurations/m365apps-base.xml`. Replace-not-supplement (see note below).           | The seven-app **modern default** baked literally into the source XML is preserved unchanged. *The "line stripped" semantic does NOT apply here* — the source XML carries a real default, not a placeholder. |
 
 > ℹ️ `ExcludedApps` differs from `CompanyName` in two important
@@ -143,6 +152,9 @@ even on a freshly forked toolkit you build with no flags.
 # Scalar token: bake an org name into the staged XMLs.
 .\Build\Build-IntuneWinPackages.ps1 -CompanyName "Contoso Ltd"
 
+# Scalar token: set the primary M365 Apps UI language (validated against the matrix).
+.\Build\Build-IntuneWinPackages.ps1 -Language nb-no
+
 # Array token: re-include Access (drop it from the exclusion list).
 .\Build\Build-IntuneWinPackages.ps1 -ExcludedApps Bing,Groove,Lync,OneDrive,Publisher,Teams
 
@@ -152,7 +164,7 @@ even on a freshly forked toolkit you build with no flags.
 # Persist for every build (build-config.json is gitignored):
 Copy-Item build-config.example.json build-config.json
 # edit build-config.json:
-#   { "CompanyName": "Contoso Ltd", "ExcludedApps": ["Bing","Groove","Lync"] }
+#   { "CompanyName": "Contoso Ltd", "Language": "nb-no", "ExcludedApps": ["Bing","Groove","Lync"] }
 .\Build\Build-IntuneWinPackages.ps1
 ```
 

@@ -7,15 +7,27 @@
   Rules enforced by design:
     - Channel and OfficeClientEdition MUST match the existing Office install.
       If they don't, ODT refuses the install ("Office installation mismatch").
-    - Language ID must be a language supported by Visio. en-us is the universal
-      baseline. See docs/language-matrix.md for supported Visio languages.
+      Install-Visio.ps1 rewrites the Channel attribute at runtime if it
+      differs from the installed channel.
+    - Language ID is always en-us. Visio installs in en-us regardless of
+      the base Office culture; additional UI languages for Visio ship as
+      separate Win32 apps via the LanguagePacks/ workflow on top of this
+      base install. This matches the toolkit's single-language-baseline
+      principle (one base UI language per product, language overlays via
+      Language Packs) and side-steps the ODT
+      BOOTSTRAPPER_PREREQ-UnsupportedCulturesOnUnsupportedProducts
+      prerequisite that fires when the base culture is en-GB / fr-CA /
+      es-MX (cultures Microsoft 365 Apps ships but Visio does not, per
+      https://learn.microsoft.com/microsoft-365-apps/deploy/overview-deploying-languages-microsoft-365-apps
+      footnote [1]).
 
   If you use Visio Standard, replace VisioProRetail with VisioStdRetail.
 
-  Build-time tokens (resolved by Build\Build-IntuneWinPackages.ps1):
-    CompanyName  OPTIONAL. Set via -CompanyName or build-config.json.
-                 If unset, the <Setup Name="Company" .../> line is
-                 removed during staging and Company is not applied.
+  Tokens:
+    Build-time (resolved by Build\Build-IntuneWinPackages.ps1):
+      CompanyName  OPTIONAL. Set via -CompanyName or build-config.json.
+                   If unset, the <Setup Name="Company" .../> line is
+                   removed during staging and Company is not applied.
 -->
 <Configuration ID="visio-base">
 

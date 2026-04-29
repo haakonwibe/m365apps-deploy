@@ -5,15 +5,27 @@
   install.
 
   Like Visio, Project is an add-on: Channel and OfficeClientEdition must match
-  the existing Office install. en-us is the broadest language baseline; see
-  docs/language-matrix.md for Project-supported languages.
+  the existing Office install. Install-Project.ps1 rewrites the Channel
+  attribute at runtime if it differs from the installed channel.
+
+  Language ID is always en-us. Project installs in en-us regardless of the
+  base Office culture; additional UI languages for Project ship as separate
+  Win32 apps via the LanguagePacks/ workflow on top of this base install.
+  This matches the toolkit's single-language-baseline principle (one base
+  UI language per product, language overlays via Language Packs) and
+  side-steps the ODT BOOTSTRAPPER_PREREQ-UnsupportedCulturesOnUnsupportedProducts
+  prerequisite that fires when the base culture is en-GB / fr-CA / es-MX
+  (cultures Microsoft 365 Apps ships but Project does not, per
+    https://learn.microsoft.com/microsoft-365-apps/deploy/overview-deploying-languages-microsoft-365-apps
+  footnote [1]).
 
   For Project Standard, replace ProjectProRetail with ProjectStdRetail.
 
-  Build-time tokens (resolved by Build\Build-IntuneWinPackages.ps1):
-    CompanyName  OPTIONAL. Set via -CompanyName or build-config.json.
-                 If unset, the <Setup Name="Company" .../> line is
-                 removed during staging and Company is not applied.
+  Tokens:
+    Build-time (resolved by Build\Build-IntuneWinPackages.ps1):
+      CompanyName  OPTIONAL. Set via -CompanyName or build-config.json.
+                   If unset, the <Setup Name="Company" .../> line is
+                   removed during staging and Company is not applied.
 -->
 <Configuration ID="project-base">
 

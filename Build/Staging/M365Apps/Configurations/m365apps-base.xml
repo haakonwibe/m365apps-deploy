@@ -8,25 +8,27 @@
                           options: Current, SemiAnnual,
                           SemiAnnualPreview, BetaChannel, CurrentPreview.
     - OfficeClientEdition "64" (default) or "32".
-    - Language ID         "en-us" is the broadest baseline. Replace with
-                          your primary language, or see LanguagePacks/
-                          to deploy additional languages as separate
-                          Win32 apps.
-    - ExcludeApp          See ExcludedApps below; the modern default
-                          is the opinionated seven-app set carried by
-                          the begin/end markers in the <Product> block.
     - AUTOACTIVATE / FORCEAPPSHUTDOWN / SharedComputerLicensing
                           adjust per licensing model
                           (SharedComputerLicensing=1 on RDS/AVD).
 
   Build-time tokens (resolved by Build\Build-IntuneWinPackages.ps1):
+    Language      OPTIONAL scalar. Primary Microsoft 365 Apps UI
+                  language. Set via -Language or build-config.json
+                  (see ../../build-config.example.json). Validated
+                  against the Microsoft 365 Apps language matrix in
+                  Common/ODTLanguages.psm1 — typo'd codes fail the
+                  build before staging. Unset / null / empty falls
+                  back to "en-us" (the toolkit default). The toolkit
+                  installs ONE base UI language by design;
+                  additional UI languages ship as separate Win32
+                  apps via the LanguagePacks/ workflow.
     CompanyName   OPTIONAL scalar. Set via -CompanyName or
-                  build-config.json (see
-                  ../../build-config.example.json). If unset, the
-                  entire <Setup Name="Company" .../> line below is
-                  removed during staging and the Company setting is
-                  simply not applied (matches OCT's behaviour for
-                  blank fields).
+                  build-config.json. If unset, the entire
+                  <Setup Name="Company" .../> line below is removed
+                  during staging and the Company setting is simply
+                  not applied (matches OCT's behaviour for blank
+                  fields).
     ExcludedApps  ARRAY. The default seven-app exclusion set lives
                   literally below, between the begin/end marker comments
                   inside the <Product> block. A build-config.json

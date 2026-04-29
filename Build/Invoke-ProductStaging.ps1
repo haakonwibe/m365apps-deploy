@@ -42,7 +42,7 @@
 .NOTES
     Library : Invoke-ProductStaging.ps1
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 
     Do not run this file directly; dot-source it from a build script:
 
@@ -112,6 +112,20 @@ function Get-DefaultBuildTokens {
 
     [ordered]@{
         'CompanyName'         = @{ Mode = 'BuildTime'; Value = $null }
+        # Single-language baseline for Microsoft 365 Apps (per the toolkit's
+        # design principle: one base UI language, additional UI languages
+        # ship as separate Win32 apps via LanguagePacks/). Default = 'en-us'
+        # so an unset / null / empty value substitutes 'en-us' rather than
+        # dropping the line — a missing <Language> child would make the
+        # <Product> element invalid for ODT. KnownValues is populated by the
+        # build orchestrator from Get-ODTSupportedLanguages so the engine
+        # rejects typos before staging starts.
+        'Language'            = @{
+            Mode        = 'BuildTime'
+            Value       = $null
+            Default     = 'en-us'
+            KnownValues = $null
+        }
         'ExcludedApps'        = @{
             Mode         = 'ArrayExpansion'
             Value        = $null   # $null = use default block from XML; array = override.
@@ -496,7 +510,27 @@ function Invoke-XmlTokenSubstitution {
                 [void]$buildSeen.Add($name)
                 $value = $null
                 if ($token.Contains('Value')) { $value = $token.Value }
-                if ($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value)) {
+                # Effective value: explicit Value wins, else fall back to the
+                # registration's Default (when present and non-empty), else
+                # treat as unset.
+                $hasValue = ($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value))
+                $effective = if ($hasValue) { [string]$value }
+                             elseif ($token.Contains('Default') -and `
+                                     -not [string]::IsNullOrWhiteSpace([string]$token.Default)) {
+                                [string]$token.Default
+                             }
+                             else { $null }
+                if ($null -ne $effective) {
+                    # Validate against KnownValues (when present) before substituting.
+                    # ODT silently ignores invalid values (e.g. typo'd Language tags
+                    # produce 17002 only at install time on a real device), so a
+                    # build-time hard-fail is the right place to catch it.
+                    if ($token.Contains('KnownValues') -and $null -ne $token.KnownValues) {
+                        $known = @($token.KnownValues)
+                        if ($known.Count -gt 0 -and ($known -inotcontains $effective)) {
+                            throw ("Invoke-XmlTokenSubstitution: token '{0}' value '{1}' is not in the registered KnownValues set in '{2}'. Allowed values (first 10): {3}..." -f $name, $effective, $Path, (($known | Select-Object -First 10) -join ', '))
+                        }
+                    }
                     # Count placeholder occurrences in the line before substituting.
                     $count = 0
                     $idx = 0
@@ -504,7 +538,7 @@ function Invoke-XmlTokenSubstitution {
                         $count++
                         $idx += $placeholder.Length
                     }
-                    $modified = $modified.Replace($placeholder, [string]$value)
+                    $modified = $modified.Replace($placeholder, $effective)
                     $substituted += $count
                 }
                 else {

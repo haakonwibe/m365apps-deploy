@@ -93,7 +93,7 @@
 .NOTES
     Script  : Build-IntuneWinPackages.ps1
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 [CmdletBinding()]
 param(
@@ -119,10 +119,22 @@ param(
     # Resolution order: CLI parameter wins, then build-config.json, then
     # the registration-table default. For BuildTime scalar tokens, "unset"
     # means the line containing the placeholder is removed (mirrors OCT's
-    # blank-field behaviour). For ArrayExpansion tokens, "unset" means the
-    # default array baked into the source XML is preserved as-is.
+    # blank-field behaviour) — UNLESS the token registers a Default value
+    # (e.g. -Language), in which case the Default is substituted instead.
+    # For ArrayExpansion tokens, "unset" means the default array baked into
+    # the source XML is preserved as-is.
     [AllowEmptyString()] [AllowNull()]
     [string] $CompanyName = $null,
+
+    # Primary Microsoft 365 Apps UI language. Single tag (the toolkit's
+    # base-install design principle: one base language, additional UI
+    # languages ship as separate Win32 apps via LanguagePacks/). Validated
+    # against Get-ODTSupportedLanguages -TargetProduct O365ProPlusRetail
+    # before staging; unknown / typo'd codes fail the build. Unset / null /
+    # empty falls back to the Default registered in Get-DefaultBuildTokens
+    # ('en-us').
+    [AllowEmptyString()] [AllowNull()]
+    [string] $Language = $null,
 
     # Override the default exclusion set baked into m365apps-base.xml. An
     # explicit value here REPLACES the default (it does not supplement).
@@ -144,6 +156,27 @@ $ErrorActionPreference = 'Stop'
 # parameters - so CLI wins, config file is the persisted middle, and unset
 # stays unset.
 $Tokens = Get-DefaultBuildTokens
+
+# Populate runtime-resolved KnownValues sets (kept out of the static
+# registration so Get-DefaultBuildTokens stays a pure function).
+# Language: validate against the Microsoft 365 Apps language matrix in
+# Common\ODTLanguages.psm1 — the canonical list is one source of truth,
+# shared with the per-product language-pack validator.
+$languagesModulePath = Join-Path -Path $RepositoryRoot -ChildPath 'Common\ODTLanguages.psm1'
+if (Test-Path -LiteralPath $languagesModulePath -PathType Leaf) {
+    $alreadyLoaded = [bool](Get-Module -Name 'ODTLanguages')
+    if (-not $alreadyLoaded) {
+        Import-Module -Name $languagesModulePath -Force -ErrorAction Stop
+    }
+    try {
+        $Tokens.Language.KnownValues = @(Get-ODTSupportedLanguages -TargetProduct 'O365ProPlusRetail')
+    }
+    finally {
+        if (-not $alreadyLoaded) {
+            Remove-Module -Name 'ODTLanguages' -ErrorAction SilentlyContinue
+        }
+    }
+}
 
 $buildConfigLoaded = $null
 if (Test-Path -LiteralPath $BuildConfigPath -PathType Leaf) {
@@ -180,6 +213,7 @@ if (Test-Path -LiteralPath $BuildConfigPath -PathType Leaf) {
 # CLI parameters override the config file. Add new tokens here as
 # one-liners when extending the registration table.
 if ($PSBoundParameters.ContainsKey('CompanyName'))  { $Tokens.CompanyName.Value  = $CompanyName }
+if ($PSBoundParameters.ContainsKey('Language'))     { $Tokens.Language.Value     = $Language }
 if ($PSBoundParameters.ContainsKey('ExcludedApps')) { $Tokens.ExcludedApps.Value = $ExcludedApps }
 
 $definitions     = Get-ProductDefinitions
@@ -203,7 +237,12 @@ $buildTimeTokenSummary = foreach ($name in $Tokens.Keys) {
         $value = $Tokens[$name].Value
         if ($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value)) {
             ("{0}='{1}'" -f $name, $value)
-        } else {
+        }
+        elseif ($Tokens[$name].Contains('Default') -and `
+                -not [string]::IsNullOrWhiteSpace([string]$Tokens[$name].Default)) {
+            ("{0}='{1}' (default)" -f $name, $Tokens[$name].Default)
+        }
+        else {
             ("{0}=<unset, line stripped>" -f $name)
         }
     }

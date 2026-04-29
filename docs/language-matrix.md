@@ -72,10 +72,14 @@ sv-se        th-th        tr-tr        uk-ua        vi-vn
 zh-cn        zh-tw
 ```
 
-**Known issue with en-gb on Visio**: documented as supported, but fails
-on several Visio builds with "Language not available". Test in your lab
-before rolling out broadly. See `docs/troubleshooting.md` for the
-workaround if you hit this.
+**`en-gb`, `fr-ca`, `es-mx` caveat:** these three tags appear in the
+matrix above (Microsoft documents them as supported), but Visio does
+not ship a full UI pack for any of them. v1.0.5 makes Visio/Project
+base installs **always en-US** so admins never trip the
+ODT-level prerequisite this caveat would otherwise produce, and
+language-pack deployments fall back to en-US / fr-FR / es-ES strings
+in Visio's UI for the same reason. See
+[en-GB / fr-CA / es-MX language packs on Visio / Project](#en-gb--fr-ca--es-mx-language-packs-on-visio--project) below.
 
 ## Project Professional (`ProjectProRetail` / `ProjectStdRetail`)
 
@@ -92,6 +96,39 @@ ro-ro        ru-ru        sk-sk        sl-si        sr-latn-rs
 sv-se        th-th        tr-tr        uk-ua        vi-vn
 zh-cn        zh-tw
 ```
+
+## en-GB / fr-CA / es-MX language packs on Visio / Project
+
+When you install the `en-gb`, `fr-ca`, or `es-mx` **language pack** on
+a machine that already has Visio or Project, those products list the
+language as installed in the Office Language Preferences UI — but
+Visio and Project render their interface in `en-US`, `fr-FR`, or
+`es-ES` respectively. Microsoft does not ship a full Visio / Project
+UI pack for those three cultures (footnote [1] under Visio/Project
+on the [supported-languages page](https://learn.microsoft.com/microsoft-365-apps/deploy/overview-deploying-languages-microsoft-365-apps)).
+
+| Language pack installed | Word / Excel / etc. UI | Visio / Project UI |
+|-------------------------|------------------------|--------------------|
+| `en-gb`                 | en-GB                  | en-US              |
+| `fr-ca`                 | fr-CA                  | fr-FR              |
+| `es-mx`                 | es-MX                  | es-ES              |
+
+This is downstream Microsoft behaviour, not a toolkit limitation. The
+toolkit's `Install-LanguagePack.ps1` uses Microsoft's documented
+`LanguagePack` pseudo-product (`Product ID="LanguagePack"` in the
+rendered XML) so any language pack is applied across all installed
+Office products that support it — Visio and Project pick it up, but
+fall back to the parent culture for UI strings.
+
+Proofing (spell-check, hyphenation, thesaurus) does install and work
+for the requested culture across all products; only the UI strings
+fall back in Visio / Project. Communicate this to end users ahead
+of an `en-gb` / `fr-ca` / `es-mx` rollout.
+
+v1.0.5 onwards: the base install for Visio / Project is always
+en-US, so admins who don't push the language pack as a separate Win32
+app never see this fallback. The fallback only surfaces when the
+language pack is deployed on top.
 
 ## Proofing (spell-check) for non-primary languages
 
@@ -125,9 +162,11 @@ looks convenient but it's unsafe for Visio / Project add-ons because:
    "why does this device have Visio in German?" has no answer in the
    deployment config.
 
-Instead: the install scripts read the current Office install's
-`ClientCulture`, and pass an **explicit** language to `setup.exe` — one
-that we've validated against the per-product matrix first.
+Instead: the install scripts read the current Office install's full
+`InstalledLanguages` list, filter it through `Resolve-VisioProjectLanguages`
+(drops `en-gb` / `fr-ca` / `es-mx`, falls back to `en-us` if every
+base culture is unsupported), and pass **explicit** `<Language>`
+elements to `setup.exe` — one per resolved BCP-47 code.
 
 ## Updating the matrix
 

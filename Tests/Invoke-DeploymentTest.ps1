@@ -72,7 +72,7 @@
 .NOTES
     Script  : Invoke-DeploymentTest.ps1
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 [CmdletBinding()]
 param(
@@ -82,7 +82,7 @@ param(
 
     [switch] $UseEvergreenSetup,
 
-    [ValidatePattern('^[a-zA-Z]{2}(-[a-zA-Z]{2,8}){1,3}$')]
+    [ValidatePattern('^[a-zA-Z]{2,3}(-[a-zA-Z]{2,8}){1,3}$')]
     [string] $LanguageToInstall = 'nb-no',
 
     [switch] $SkipVisio,

@@ -6,7 +6,7 @@
 ![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?logo=powershell&logoColor=white)
 ![Intune Win32](https://img.shields.io/badge/Intune-Win32-0078D4?logo=microsoft&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.8-blue.svg)
 
 [![m365apps-deploy poster](site/poster.png)](https://haakonwibe.github.io/m365apps-deploy/)
 
@@ -56,8 +56,9 @@ assembling and reconciling several for every new tenant.
 
 ## ✨ Features
 
-- 🧱 **Single-language baseline (`en-us`)** — one base image, per-group
-  language overlays shipped as additional Win32 apps.
+- 🧱 **Single-language baseline** — pick the base UI language at build
+  time (`-Language sv-se`; default `en-us`); per-group language overlays
+  ship as additional Win32 apps.
 - 🪵 **CMTrace-compatible logs** — every script, session-header to
   footer, severity 1/2/3, PID, user context, and source-line trace.
 - 🔁 **Rotation** at 10 MB; old log becomes `.log.old`.
@@ -91,7 +92,7 @@ assembling and reconciling several for every new tenant.
   copy-to-VM-ready tree at `Build\Staging\<Product>\` (use
   `-StagingOnly`), skipping the Intune upload-assign loop. See
   [`docs/local-testing.md`](docs/local-testing.md).
-- ✔️ **Pester 5 unit tests** (94 tests) + an end-to-end lab harness.
+- ✔️ **Pester 5 unit tests** (577 tests) + an end-to-end lab harness.
 
 ---
 
@@ -305,6 +306,7 @@ Resolution order:
 |----------------|------------------|--------------------------------------------|-----------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | `CompanyName`  | scalar           | `-CompanyName "..."`                        | `<Setup Name="Company" Value="..."/>` in M365 Apps / Visio / Project base XMLs.                          | The `<Setup>` line is dropped, and the surrounding `<AppSettings>` block is stripped if it becomes empty.        |
 | `ExcludedApps` | array (replace)  | `-ExcludedApps Access,Bing,Lync` (etc.)     | The default `<ExcludeApp>` set in `M365Apps/Configurations/m365apps-base.xml` (the `<Product>` block).   | The seven-app **modern default** is preserved as-is from the XML: `Access, Bing, Groove, Lync, OneDrive, Publisher, Teams`. |
+| `Language`     | scalar           | `-Language sv-se` (etc.)                    | `<Language ID="..."/>` in `M365Apps/Configurations/m365apps-base.xml` — the M365 Apps base UI language. Validated against the supported-language matrix at build time, so typos fail the build instead of producing a 17002 at install time. | Defaults to `en-us` (an unset value substitutes the default rather than dropping the line, since an empty `<Language>` would make the `<Product>` element invalid for ODT). |
 
 ```powershell
 # Example 1: bake a company name into this build's staged XMLs.
@@ -348,7 +350,7 @@ fields. Detection is a custom script — use the files in the same folder.
 | **M365 Apps**  | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-M365Apps.ps1`                           | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Uninstall-M365Apps.ps1`                           | `Detect-M365Apps.ps1`                                 |
 | **Visio**      | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-Visio.ps1`                              | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Uninstall-Visio.ps1`                              | `Detect-Visio.ps1`                                    |
 | **Project**    | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-Project.ps1`                            | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Uninstall-Project.ps1`                            | `Detect-Project.ps1`                                  |
-| **Language Pack** | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-LanguagePack.ps1 -LanguageID nb-no` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Uninstall-LanguagePack.ps1 -LanguageID nb-no`     | upload `Build\Output\LanguagePacks\DetectionScripts\Detect-LanguagePack-nb-no.ps1` |
+| **Language Pack** | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-LanguagePack.ps1 -LanguageID nb-no` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File Uninstall-LanguagePack.ps1 -LanguageID nb-no`     | `Detect-LanguagePack-nb-no.ps1` |
 
 > 💡 Intune doesn't pass parameters to detection scripts. The build
 > generates one self-contained wrapper per supported Office language
@@ -363,6 +365,37 @@ fields. Detection is a custom script — use the files in the same folder.
 > recognise the proofing). Install the full Language Pack for the
 > target language instead — Language Packs include proofing as
 > part of the package.
+
+> 🌍 **Visio / Project always install in `en-US`.** The base install
+> for both products is a constant en-US — independent of the base
+> Microsoft 365 Apps culture. Additional UI languages for Visio /
+> Project ship as separate Win32 apps via the `LanguagePacks/`
+> workflow on top of the en-US base, exactly the same model the
+> toolkit uses for Microsoft 365 Apps's non-primary languages. One
+> base install per product, one canonical mechanism for adding
+> languages on top.
+>
+> Why constant en-US rather than culture-matching: Microsoft 365
+> Apps ships three cultures (`en-GB`, `fr-CA`, `es-MX`) that Visio
+> and Project don't carry as separate base-culture installs (see the
+> [supported-languages doc](https://learn.microsoft.com/microsoft-365-apps/deploy/overview-deploying-languages-microsoft-365-apps),
+> footnote [1] under Visio/Project), so naïve inheritance trips ODT's
+> `BOOTSTRAPPER_PREREQ-UnsupportedCulturesOnUnsupportedProducts`
+> prerequisite (exit 1603, no install attempt). LP installs flip
+> `ClientCulture` over a device's lifetime; the per-product matrix
+> is partly aspirational; distinguishing original install culture
+> from current display preference is more state than a Win32 install
+> script should track. Always-en-US plus LP overlays sidesteps every
+> one of those failure modes.
+>
+> **Language-pack side note:** if you deploy the `en-gb`, `fr-ca`,
+> or `es-mx` language pack on top of Visio / Project, those products
+> show the language as installed in their Language Preferences UI
+> but render in `en-US` / `fr-FR` / `es-ES` strings (Microsoft
+> doesn't ship a Visio / Project UI pack for those three cultures).
+> Proofing still works. See
+> [`docs/language-matrix.md`](docs/language-matrix.md#en-gb--fr-ca--es-mx-language-packs-on-visio--project)
+> for the full behaviour table.
 
 ### Dependencies at a glance
 
@@ -442,7 +475,7 @@ Open with:
 Invoke-Pester -Path .\Tests\Pester
 ```
 
-- ✅ 8 test files, **94 tests**, all mocked — no real registry or ODT
+- ✅ 14 test files, **577 tests**, all mocked — no real registry or ODT
   calls.
 - Covers: log line shape, rotation, path resolution, prerequisite
   wrappers, registry detection helpers, language-matrix validation,
@@ -486,7 +519,7 @@ cleanly from install mechanics.
 - 📄 **License**: [MIT](LICENSE)
 - 🔖 **Versioning**: [Semantic Versioning](https://semver.org/) — see
   [`CHANGELOG.md`](CHANGELOG.md).
-- 🧷 **Current version**: `1.0.0`
+- 🧷 **Current version**: `1.0.8`
 
 ---
 

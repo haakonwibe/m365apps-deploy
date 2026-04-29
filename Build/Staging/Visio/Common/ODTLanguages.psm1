@@ -22,7 +22,7 @@
 .NOTES
     Module  : ODTLanguages
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 
 Set-StrictMode -Version Latest
@@ -114,7 +114,7 @@ function Test-ODTLanguageSupported {
     [OutputType([bool])]
     param(
         [Parameter(Mandatory)]
-        [ValidatePattern('^[a-zA-Z]{2}(-[a-zA-Z]{2,8}){1,3}$')]
+        [ValidatePattern('^[a-zA-Z]{2,3}(-[a-zA-Z]{2,8}){1,3}$')]
         [string] $LanguageID,
 
         [Parameter(Mandatory)]

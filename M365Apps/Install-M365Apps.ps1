@@ -47,7 +47,7 @@
 .NOTES
     Script  : Install-M365Apps.ps1
     Project : m365apps-deploy
-    Version : 1.0.0
+    Version : <see Common/ODTVersion.psm1>
 #>
 [CmdletBinding()]
 param(
@@ -67,7 +67,6 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ScriptName    = 'Install-M365Apps'
-$ScriptVersion = '1.0.0'
 $LogFile       = 'M365Apps-Install.log'
 $ProductId     = 'O365ProPlusRetail'
 
@@ -91,9 +90,12 @@ $commonPath = if (Test-Path -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPa
     Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Common'
 }
 Import-Module (Join-Path $commonPath 'ODTLogging.psm1')       -Force
+Import-Module (Join-Path $commonPath 'ODTVersion.psm1')       -Force
 Import-Module (Join-Path $commonPath 'ODTPrerequisites.psm1') -Force
 Import-Module (Join-Path $commonPath 'ODTOfficeState.psm1')   -Force
 Import-Module (Join-Path $commonPath 'ODTInvoke.psm1')        -Force
+
+$ScriptVersion = Get-ToolkitVersion
 
 $sessionParams = @{
     ConfigurationFile      = $ConfigurationFile
@@ -149,6 +151,29 @@ try {
 
     $setupPath = Resolve-ODTSetupPath -SetupExePath $SetupExePath -UseEvergreen:$UseEvergreenSetup
     Write-ODTLog -Message ("Using setup.exe: {0}" -f $setupPath) -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
+
+    # Enumerate the languages declared in the staged XML and log them before
+    # launching setup.exe, so admins can correlate "this device installed in
+    # nb-no" without grepping the configuration file. Tolerant of malformed
+    # XML: the install proceeds, with a severity-2 fallback line.
+    try {
+        [xml]$configDoc = Get-Content -LiteralPath $configPath -Raw
+        $langNodes = $configDoc.SelectNodes('//Language')
+        $langIds = @()
+        foreach ($node in $langNodes) {
+            $id = $node.GetAttribute('ID')
+            if (-not [string]::IsNullOrWhiteSpace($id)) { $langIds += $id }
+        }
+        $langIds = @($langIds | Select-Object -Unique)
+        if ($langIds.Count -gt 0) {
+            Write-ODTLog -Message ("Installing M365 Apps with languages: {0}." -f ($langIds -join ', ')) -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
+        } else {
+            Write-ODTLog -Message 'Installing M365 Apps with languages: <none declared in XML>.' -Severity 2 -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
+        }
+    }
+    catch {
+        Write-ODTLog -Message ("Could not enumerate languages from staged XML ({0}); install will proceed using whatever the XML declares." -f $_.Exception.Message) -Severity 2 -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
+    }
 
     Write-ODTLog -Message 'Starting setup.exe /configure.' -Component $ScriptName -LogFile $LogFile -LogPath $LogPath
     $result = Invoke-ODTSetup -SetupExePath $setupPath -ConfigurationPath $configPath
