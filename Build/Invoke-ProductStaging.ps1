@@ -305,8 +305,13 @@ function Expand-XmlArrayTokens {
         # Whole-block regex: capture leading indent on the begin-marker line
         # plus everything up to and including the end-marker line.
         # `(?ms)` enables singleline-dot + multiline ^/$.
+        # Note: trailing `\r?$` (not `[ \t]*$`) on the end-marker line.
+        # In .NET multiline mode, `$` matches immediately before `\n`. On
+        # CRLF input, the position before `\n` has `\r` to its left, and
+        # `[ \t]` does not consume `\r`, so the match would silently fail
+        # on every Windows build where git autocrlf normalises to CRLF.
         $blockRegex = [regex]::new(
-            '(?ms)^(?<indent>[ \t]*)<!--\s*' + $beginPattern + '\s*-->[ \t]*\r?\n(?<body>.*?)^[ \t]*<!--\s*' + $endPattern + '\s*-->[ \t]*$',
+            '(?ms)^(?<indent>[ \t]*)<!--\s*' + $beginPattern + '\s*-->[ \t]*\r?\n(?<body>.*?)^[ \t]*<!--\s*' + $endPattern + '\s*-->[ \t]*\r?$',
             'IgnoreCase'
         )
 
