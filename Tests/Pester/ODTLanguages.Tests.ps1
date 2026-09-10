@@ -68,7 +68,7 @@ Describe 'Visio/Project base XML carries the en-us literal' {
         $script:RepoRoot = Resolve-Path -Path (Join-Path -Path $PSScriptRoot -ChildPath '..\..')
     }
 
-    It '<Path> hardcodes <Language ID="en-us" />' -ForEach @(
+    It '<Path> hardcodes a literal en-us Language element' -ForEach @(
         @{ Path = 'Visio\Configurations\visio-base.xml' }
         @{ Path = 'Project\Configurations\project-base.xml' }
     ) {

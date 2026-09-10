@@ -184,3 +184,104 @@ Describe 'Stop-ODTLogSession Result line derives from ExitCode' {
         $content | Should -Not -Match 'Result         : Install succeeded\.'
     }
 }
+
+Describe 'Get-ODTSessionElapsed' {
+    It 'returns TimeSpan::Zero when no session is open for that log file' {
+        $span = Get-ODTSessionElapsed -LogFile 'no-such-session.log' -LogPath $script:TestLogRoot
+        $span | Should -BeOfType ([timespan])
+        $span.Ticks | Should -Be 0
+    }
+
+    It 'returns a small positive span immediately after Start-ODTLogSession' {
+        $logFile = 'elapsed.log'
+        Start-ODTLogSession -ScriptName 'Pester-Elapsed' -LogFile $logFile -LogPath $script:TestLogRoot
+        $span = Get-ODTSessionElapsed -LogFile $logFile -LogPath $script:TestLogRoot
+        $span.TotalSeconds | Should -BeGreaterOrEqual 0
+        $span.TotalSeconds | Should -BeLessThan 5
+        Stop-ODTLogSession -ScriptName 'Pester-Elapsed' -ExitCode 0 -LogFile $logFile -LogPath $script:TestLogRoot
+    }
+
+    It 'returns to Zero once the session is stopped' {
+        $logFile = 'elapsed-cleared.log'
+        Start-ODTLogSession -ScriptName 'Pester-Elapsed' -LogFile $logFile -LogPath $script:TestLogRoot
+        Stop-ODTLogSession -ScriptName 'Pester-Elapsed' -ExitCode 0 -LogFile $logFile -LogPath $script:TestLogRoot
+        (Get-ODTSessionElapsed -LogFile $logFile -LogPath $script:TestLogRoot).Ticks | Should -Be 0
+    }
+
+    It 'keys on the resolved path, so LogFile+LogPath and the full path agree' {
+        $logFile = 'elapsed-keyed.log'
+        $full    = Join-Path -Path $script:TestLogRoot -ChildPath $logFile
+        Start-ODTLogSession -ScriptName 'Pester-Elapsed' -LogFile $logFile -LogPath $script:TestLogRoot
+        (Get-ODTSessionElapsed -LogFile $full).Ticks | Should -BeGreaterThan 0
+        Stop-ODTLogSession -ScriptName 'Pester-Elapsed' -ExitCode 0 -LogFile $logFile -LogPath $script:TestLogRoot
+    }
+}
+
+Describe 'Write-ODTPhase' {
+    It 'writes exactly one line in PHASE [t+HH:MM:SS] <Name> shape' {
+        $logFile = 'phase-basic.log'
+        Write-ODTPhase -Phase 'SetupStart' -Component 'Pester-Phase' -LogFile $logFile -LogPath $script:TestLogRoot
+        $lines = @(Get-Content -LiteralPath (Join-Path $script:TestLogRoot $logFile) | Where-Object { $_ -match '<!\[LOG\[' })
+        $lines.Count | Should -Be 1
+        $lines[0] | Should -Match 'PHASE \[t\+\d\d:\d\d:\d\d\] SetupStart'
+    }
+
+    It 'honours the caller-supplied Component rather than defaulting to ODTLogging' {
+        $logFile = 'phase-component.log'
+        Write-ODTPhase -Phase 'SetupStart' -Component 'Install-M365Apps' -LogFile $logFile -LogPath $script:TestLogRoot
+        $content = Get-Content -LiteralPath (Join-Path $script:TestLogRoot $logFile) -Raw
+        $content | Should -Match 'component="Install-M365Apps"'
+    }
+
+    It 'appends -Detail after a dash' {
+        $logFile = 'phase-detail.log'
+        Write-ODTPhase -Phase 'SetupEnd' -Detail 'exit 0 after 878s' -Component 'Pester-Phase' -LogFile $logFile -LogPath $script:TestLogRoot
+        $content = Get-Content -LiteralPath (Join-Path $script:TestLogRoot $logFile) -Raw
+        $content | Should -Match 'PHASE \[t\+\d\d:\d\d:\d\d\] SetupEnd - exit 0 after 878s'
+    }
+
+    It 'leaves no dangling dash when -Detail is omitted or whitespace' {
+        $logFile = 'phase-nodetail.log'
+        Write-ODTPhase -Phase 'Done' -Component 'Pester-Phase' -LogFile $logFile -LogPath $script:TestLogRoot
+        Write-ODTPhase -Phase 'Done' -Detail '   ' -Component 'Pester-Phase' -LogFile $logFile -LogPath $script:TestLogRoot
+        $content = Get-Content -LiteralPath (Join-Path $script:TestLogRoot $logFile) -Raw
+        $content | Should -Not -Match 'Done -'
+    }
+
+    It 'honours -Severity' {
+        $logFile = 'phase-severity.log'
+        Write-ODTPhase -Phase 'RemoveFailed' -Severity 2 -Component 'Pester-Phase' -LogFile $logFile -LogPath $script:TestLogRoot
+        (Get-Content -LiteralPath (Join-Path $script:TestLogRoot $logFile) -Raw) | Should -Match 'type="2"'
+    }
+
+    It 'measures the offset from the open session rather than from zero' {
+        $logFile = 'phase-offset.log'
+        Start-ODTLogSession -ScriptName 'Pester-Phase' -LogFile $logFile -LogPath $script:TestLogRoot
+        Start-Sleep -Milliseconds 1100
+        Write-ODTPhase -Phase 'Later' -Component 'Pester-Phase' -LogFile $logFile -LogPath $script:TestLogRoot
+        $content = Get-Content -LiteralPath (Join-Path $script:TestLogRoot $logFile) -Raw
+        $content | Should -Match 'PHASE \[t\+00:00:0[1-9]\] Later'
+        Stop-ODTLogSession -ScriptName 'Pester-Phase' -ExitCode 0 -LogFile $logFile -LogPath $script:TestLogRoot
+    }
+
+    It 'rejects an empty Phase name' {
+        { Write-ODTPhase -Phase '' -Component 'Pester-Phase' -LogFile 'phase-empty.log' -LogPath $script:TestLogRoot } |
+            Should -Throw
+    }
+}
+
+Describe 'ODTLogging module surface' {
+    It 'exports exactly the expected functions' {
+        $expected = @(
+            'Get-ODTSessionElapsed',
+            'Initialize-ODTLogDirectory',
+            'Resolve-ODTLogFilePath',
+            'Start-ODTLogSession',
+            'Stop-ODTLogSession',
+            'Write-ODTLog',
+            'Write-ODTPhase'
+        )
+        $actual = @((Get-Module ODTLogging).ExportedFunctions.Keys | Sort-Object)
+        $actual | Should -Be $expected
+    }
+}

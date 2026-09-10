@@ -1,0 +1,26 @@
+{
+  "_scenario": "Norway: nb-no (Bokmal) as the base UI language, with nn-no (Nynorsk) available to the groups that need it.",
+
+  "_readThisFirst": "nb-no and nn-no cannot both go in Language - it is a scalar, and a JSON array hard-fails the build before staging. Pick whichever your majority writes as the base and ship the other as a LanguagePack Win32 app. Norway is the clearest case for this split: Nynorsk is a minority written standard, so baking it into the base would make every device download roughly 300-400 MB that most users never open.",
+
+  "_whichShouldBeTheBase": "The base language sets the Shell UI - Start menu shortcuts, right-click context menus, tooltips - and Microsoft requires an uninstall and reinstall of Office to change it afterwards. Language packs, by contrast, can be added and removed freely at any time. So when in doubt, make the base the one that is hardest to change for the most people, and layer the other on top.",
+
+  "_nynorskCaveat": "nn-no is supported for Microsoft 365 Apps but is NOT in the Visio or Project language matrices - those two accept nb-no only. If you deploy Visio or Project to Nynorsk users, they get nb-no there. Also note that the matrix in Common/ODTLanguages.psm1 lists what Microsoft documents; a handful of the less common tags still return 17002 from setup.exe in practice, so pilot an unusual language on one device before rolling it out. See docs/language-matrix.md.",
+
+  "_additionalLanguageApps": {
+    "_comment": "One Intune Win32 app. NOT a build-config value - listed here so the rollout is described in one place.",
+    "nn-no": {
+      "install": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-LanguagePack.ps1 -LanguageID nn-no -TargetProduct O365ProPlusRetail",
+      "uninstall": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File Uninstall-LanguagePack.ps1 -LanguageID nn-no -TargetProduct O365ProPlusRetail",
+      "detection": "Build\\Output\\LanguagePacks\\DetectionScripts\\Detect-LanguagePack-nn-no.ps1",
+      "dependency": "Microsoft 365 Apps for Enterprise, Auto-install = Yes",
+      "espBlocking": "No - let users reach the desktop while it installs"
+    }
+  },
+
+  "_ifYouWantNynorskAsTheBaseInstead": "Swap the values: set Language to nn-no here and create the LanguagePack app with -LanguageID nb-no. Everything else is unchanged. Read the Nynorsk caveat above first - a nn-no base still leaves Visio and Project on en-us with only nb-no available as an overlay.",
+
+  "CompanyName": "Contoso Norge AS",
+  "Language": "nb-no",
+  "ExcludedApps": null
+}

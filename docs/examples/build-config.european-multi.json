@@ -1,0 +1,30 @@
+{
+  "_scenario": "Multi-country European rollout: one en-gb base package, with de-de, fr-fr, es-es, it-it and nl-nl added per user group.",
+
+  "_readThisFirst": "Language is a SCALAR, not a list. There is no 'Languages' array, and a JSON array here does not work - the build coerces it to the string 'de-de fr-fr' and hard-fails with \"value 'de-de fr-fr' is not in the registered KnownValues set\" before anything is staged. That is a deliberate design choice rather than a limitation to work around: each additional UI language adds roughly 300-400 MB to the payload that EVERY device downloads, so baking five languages into the base package would make every device pay for all five.",
+
+  "_howMultiLanguageActuallyWorks": [
+    "1. Pick ONE base UI language below. It sets the Shell UI - Start menu shortcuts, right-click context menus, tooltips - and Microsoft requires an uninstall and reinstall of Office to change it later, so it is worth getting right first time.",
+    "2. Build once. That single .intunewin serves every country; nothing about it is country-specific except the base language.",
+    "3. Ship each additional language as its own Intune Win32 app from Build\\Output\\LanguagePacks\\, targeted at the group that needs it. The same .intunewin is reused for every language - only the command parameters and the uploaded detection script differ.",
+    "4. Give each language app a dependency on Microsoft 365 Apps with Auto-install = Yes, and leave it OUT of the ESP blocking list. Users then reach the desktop while their language pack installs behind them."
+  ],
+
+  "_baseLanguageChoice": "en-gb is used here as a neutral base for a European tenant. If one country dominates, use its language instead and ship en-gb as one of the packs - the pattern is the same either way.",
+
+  "_additionalLanguageApps": {
+    "_comment": "One Intune Win32 app per language. These are NOT build-config values - they are listed here so the whole rollout is described in one place. All five are supported for Microsoft 365 Apps, Visio and Project.",
+    "_installCommand": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-LanguagePack.ps1 -LanguageID <LanguageID> -TargetProduct O365ProPlusRetail",
+    "_uninstallCommand": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File Uninstall-LanguagePack.ps1 -LanguageID <LanguageID> -TargetProduct O365ProPlusRetail",
+    "_detectionScript": "Build\\Output\\LanguagePacks\\DetectionScripts\\Detect-LanguagePack-<LanguageID>.ps1 - upload the wrapper matching the language; Intune runs detection scripts with no parameters, which is why one pre-generated wrapper exists per language.",
+    "_dependency": "Microsoft 365 Apps for Enterprise, Auto-install = Yes",
+    "_espBlocking": "No",
+    "languageIds": ["de-de", "fr-fr", "es-es", "it-it", "nl-nl"]
+  },
+
+  "_ifYouAlsoDeployVisioOrProject": "Visio and Project base installs are always en-us, independent of the Language token. To give them a European language, add a second LanguagePack app per language with -TargetProduct VisioProRetail or ProjectProRetail. All five languages above are in the Visio and Project matrices.",
+
+  "CompanyName": "Contoso Europe",
+  "Language": "en-gb",
+  "ExcludedApps": null
+}

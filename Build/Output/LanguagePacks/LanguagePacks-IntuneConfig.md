@@ -76,7 +76,15 @@ Then add **Microsoft 365 Apps for Enterprise** (or the matching
 Visio / Project app for a Visio / Project language pack) as a
 required dependency with **Automatically install: Yes**.
 
-## 7. Assignment
+## 7. Baked-in build inputs
+These values were resolved at build time and are baked into the package.
+Check the language before uploading: an unset `-Language` falls back to `en-us`.
+
+| Configuration | Language(s) |
+|---------------|-------------|
+| `languagepack-template.xml` | {{LanguageID}} |
+
+## 8. Assignment
 Target the appropriate Entra (Azure AD) dynamic group:
 
 - License-based dynamic groups (e.g. users with a Visio Plan 2 service plan)
@@ -87,4 +95,4 @@ ring policy. Assign as **Required** for automatic deployment or
 **Available** for Company Portal self-service.
 
 ---
-Generated: 2026-04-29T19:55:47+02:00
+Generated: 2026-09-10T11:40:06+02:00

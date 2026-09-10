@@ -1,4 +1,4 @@
-# Intune deployment guide
+﻿# Intune deployment guide
 
 Step-by-step procedure for uploading each product from this toolkit to
 Microsoft Intune as a Win32 app. Follow top-to-bottom; the order matters
@@ -78,6 +78,16 @@ In the Microsoft Intune admin center
 5. **Install command**:
    ```
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-M365Apps.ps1
+   ```
+
+   On hardware whose image ships a preinstalled *consumer* Office (for
+   example `O365HomePremRetail`), add `-RemovePreinstalledConsumerOffice`
+   so it is removed first rather than remaining alongside the enterprise
+   install — `<RemoveMSI />` covers Windows Installer products only. See
+   [`customization.md`](customization.md#5b-oem-preinstalled-consumer-office).
+
+   ```
+   powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-M365Apps.ps1 -RemovePreinstalledConsumerOffice
    ```
 6. **Uninstall command** (surgical — keep this default):
    ```
@@ -260,9 +270,29 @@ predictable first-sign-in experience:
   if they are assigned to the user/device"). 60 minutes covers the
   M365 Apps payload plus dependency-walk overhead with margin.
 
+  **Budget for more than the install itself.** On a representative modern
+  laptop (Windows 11, Monthly Enterprise, payload from the CDN), a first
+  install measured roughly 25 minutes from the first detection run to the
+  successful one, split approximately:
+
+  | Segment | Share |
+  |---------|-------|
+  | Intune Management Extension evaluation and content delivery, before the install script is invoked | ~40% |
+  | `setup.exe /configure` | ~60% |
+  | Post-install detection and wrapper overhead | ~1% |
+
+  Only part of the window is the Office install; the rest is Intune
+  scheduling and content delivery, which no packaging change affects.
+  Times vary widely with link speed and device, so measure your own — the
+  install log reports its share (see
+  [`troubleshooting.md`](troubleshooting.md)), and the `Payload staged at`
+  line narrows the part that precedes it.
+
 ### What a healthy ESP run looks like in the IME log
 
 ```
+0.  IME evaluates, delivers content and re-runs detection several times
+    before launching anything (visible only in the IME log)
 1.  M365 Apps install command runs (≈ 15 min)
 2.  M365 Apps install command exits 0
 3.  M365 Apps detection runs → detected
@@ -320,7 +350,11 @@ build to refresh every wrapper.
   generic `Detect-LanguagePack.ps1` from the source tree)
 - [ ] Visio / Project apps have M365 Apps as a dependency with
   **Automatically install = Yes**
-- [ ] ESP timeout bumped to ≥ 60 minutes
+- [ ] ESP timeout bumped to ≥ 60 minutes (see the timing note above)
+- [ ] `-RemovePreinstalledConsumerOffice` added to the M365 Apps install
+      command, if the hardware ships consumer Office
+- [ ] Built package language confirmed in section 7 of
+      `Build\Output\M365Apps\M365Apps-IntuneConfig.md`
 - [ ] Return code `17002` marked as **failed** in Win32 app config
 - [ ] Assignments target the correct licensed Entra groups
 

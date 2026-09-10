@@ -222,3 +222,60 @@ Describe 'Publish-DetectionScripts' {
         }
     }
 }
+
+Describe 'Invoke-ProductStaging carries the whole Common surface' {
+    # Common\*.psm1 is staged by wildcard, so a new module is picked up with no
+    # registration anywhere. That is convenient but fragile: converting the
+    # wildcard to an explicit list would silently drop whichever module was
+    # added last, and the failure would only surface on a client as
+    # "module not found" during an install. This test pins the wildcard.
+
+    BeforeAll {
+        $script:ParityStage = Join-Path $script:WorkDir 'parity-stage'
+        $null = New-Item -Path $script:ParityStage -ItemType Directory -Force
+
+        # -Tokens $null copies sources verbatim, which is what we want here:
+        # this test is about which files arrive, not about substitution.
+        $script:ParityResult = Invoke-ProductStaging -Product 'M365Apps' `
+            -RepositoryRoot $script:RepoRoot -OutputRoot $script:ParityStage -Tokens $null
+    }
+
+    It 'stages the M365Apps product' {
+        $script:ParityResult.Status | Should -BeIn @('OK', 'Warning')
+        $script:ParityResult.StagingPath | Should -Not -BeNullOrEmpty
+    }
+
+    It 'copies every Common module, not a hard-coded subset' {
+        $expected = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'Common') -Filter '*.psm1' -File |
+            Select-Object -ExpandProperty Name | Sort-Object)
+        $actual = @(Get-ChildItem -LiteralPath (Join-Path $script:ParityResult.StagingPath 'Common') -Filter '*.psm1' -File |
+            Select-Object -ExpandProperty Name | Sort-Object)
+
+        $actual -join ',' | Should -Be ($expected -join ',') `
+            -Because 'Common\*.psm1 is staged by wildcard and must stay that way'
+    }
+
+    It 'copies every product Configuration XML, including the consumer removal one' {
+        $expected = @(Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'M365Apps\Configurations') -Filter '*.xml' -File |
+            Select-Object -ExpandProperty Name | Sort-Object)
+        $actual = @(Get-ChildItem -LiteralPath (Join-Path $script:ParityResult.StagingPath 'Configurations') -Filter '*.xml' -File |
+            Select-Object -ExpandProperty Name | Sort-Object)
+
+        $actual -join ',' | Should -Be ($expected -join ',')
+        $actual | Should -Contain 'm365apps-remove-consumer.xml'
+    }
+
+    It 'stages a Common surface the install script can actually load' {
+        # Every module Install-M365Apps.ps1 imports must be present in the
+        # staged Common\, because that is the only copy a client ever sees.
+        $installSource = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'M365Apps\Install-M365Apps.ps1') -Raw
+        $imported = [regex]::Matches($installSource, "Join-Path\s+\`$commonPath\s+'([^']+\.psm1)'") |
+            ForEach-Object { $_.Groups[1].Value }
+        @($imported).Count | Should -BeGreaterThan 0
+
+        foreach ($module in $imported) {
+            Test-Path -LiteralPath (Join-Path $script:ParityResult.StagingPath (Join-Path 'Common' $module)) -PathType Leaf |
+                Should -BeTrue -Because "$module is imported by Install-M365Apps.ps1"
+        }
+    }
+}

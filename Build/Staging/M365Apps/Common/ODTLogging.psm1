@@ -14,10 +14,17 @@
     All logs default to:
         C:\ProgramData\M365AppsDeploy\Logs\
 
-    The module exposes three functions:
+    The module exposes:
         Write-ODTLog           - append a single CMTrace line
         Start-ODTLogSession    - write a header block with script + env info
         Stop-ODTLogSession     - write a footer with duration + exit state
+        Get-ODTSessionElapsed  - time since the session header was written
+        Write-ODTPhase         - a 'PHASE [t+HH:MM:SS] <name>' marker line
+        Initialize-ODTLogDirectory / Resolve-ODTLogFilePath - path plumbing
+
+    Phase markers exist so a long-running install is readable as a timeline
+    rather than a wall of text: grep 'PHASE [t+' for the skeleton of a run,
+    then read the surrounding lines for detail.
 
 .NOTES
     Module   : ODTLogging
@@ -402,10 +409,127 @@ function Stop-ODTLogSession {
     }
 }
 
+function Get-ODTSessionElapsed {
+<#
+.SYNOPSIS
+    Time elapsed since Start-ODTLogSession opened the session for a log file.
+
+.DESCRIPTION
+    Reads the same $script:ODTSessionStartTime entry that Stop-ODTLogSession
+    uses for its Duration footer, keyed by the resolved log file path. Using
+    the session clock rather than a caller-local stopwatch keeps phase markers
+    consistent with the "Started (UTC)" line in the session header.
+
+    Returns [timespan]::Zero when no session is open for that log file, so
+    callers never have to null-check. (A hashtable miss yields $null under
+    StrictMode rather than throwing, so the lookup itself is safe.)
+
+.PARAMETER LogFile
+    Log file name (e.g. 'M365Apps-Install.log') or a full path.
+
+.PARAMETER LogPath
+    Directory the log lives in. Ignored when -LogFile is a full path.
+
+.OUTPUTS
+    [timespan] - elapsed time, or [timespan]::Zero when no session is open.
+
+.EXAMPLE
+    (Get-ODTSessionElapsed -LogFile 'M365Apps-Install.log').TotalSeconds
+#>
+    [CmdletBinding()]
+    [OutputType([timespan])]
+    param(
+        [string] $LogFile,
+
+        [string] $LogPath
+    )
+
+    $fullLogPath = Resolve-ODTLogFilePath -LogFile $LogFile -LogPath $LogPath
+
+    $start = $script:ODTSessionStartTime[$fullLogPath]
+    if ($null -eq $start) { return [timespan]::Zero }
+
+    return ((Get-Date) - $start)
+}
+
+function Write-ODTPhase {
+<#
+.SYNOPSIS
+    Write a timestamped phase marker so the cost of each stage of a run is
+    readable straight from the log.
+
+.DESCRIPTION
+    Emits a single line of the form
+
+        PHASE [t+00:14:40] SetupEnd - exit 0 after 878s
+
+    where the offset comes from Get-ODTSessionElapsed, i.e. it is measured
+    from the same instant the session header reports as "Started (UTC)".
+
+    Hours are rendered from TotalHours rather than .Hours so a run that
+    somehow exceeds 24 hours still reads monotonically instead of wrapping.
+
+    NOTE: pass -Component explicitly. Write-ODTLog derives a default Component
+    from its immediate caller, which via this function resolves to
+    ODTLogging.psm1 rather than the script the admin is actually reading about.
+
+.PARAMETER Phase
+    Short marker name, e.g. 'SetupStart'. Keep it space-free by convention so
+    the markers stay greppable.
+
+.PARAMETER Detail
+    Optional free-form context, appended after ' - '.
+
+.PARAMETER Severity
+    CMTrace severity: 1 = info (default), 2 = warning, 3 = error.
+
+.PARAMETER Component
+    CMTrace component field. Pass the calling script's name.
+
+.PARAMETER LogFile
+    Log file name or full path.
+
+.PARAMETER LogPath
+    Directory for the log.
+
+.EXAMPLE
+    Write-ODTPhase -Phase 'SetupStart' -Detail 'Starting setup.exe /configure.' `
+                   -Component 'Install-M365Apps' -LogFile 'M365Apps-Install.log'
+#>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string] $Phase,
+
+        [string] $Detail,
+
+        [ValidateSet(1, 2, 3)]
+        [int] $Severity = 1,
+
+        [string] $Component,
+
+        [string] $LogFile,
+
+        [string] $LogPath
+    )
+
+    $span = Get-ODTSessionElapsed -LogFile $LogFile -LogPath $LogPath
+    $text = 'PHASE [t+{0:00}:{1:00}:{2:00}] {3}' -f [int]$span.TotalHours, $span.Minutes, $span.Seconds, $Phase
+
+    if ($PSBoundParameters.ContainsKey('Detail') -and -not [string]::IsNullOrWhiteSpace($Detail)) {
+        $text = '{0} - {1}' -f $text, $Detail
+    }
+
+    Write-ODTLog -Message $text -Severity $Severity -Component $Component -LogFile $LogFile -LogPath $LogPath
+}
+
 Export-ModuleMember -Function @(
     'Write-ODTLog',
     'Start-ODTLogSession',
     'Stop-ODTLogSession',
+    'Get-ODTSessionElapsed',
+    'Write-ODTPhase',
     'Initialize-ODTLogDirectory',
     'Resolve-ODTLogFilePath'
 )

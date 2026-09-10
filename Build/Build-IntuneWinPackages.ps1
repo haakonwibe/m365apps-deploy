@@ -298,7 +298,13 @@ function Write-IntuneConfigDoc {
     param(
         [Parameter(Mandatory)][string] $Product,
         [Parameter(Mandatory)][hashtable] $Spec,
-        [Parameter(Mandatory)][string] $OutputDir
+        [Parameter(Mandatory)][string] $OutputDir,
+
+        # Staged product folder. Read rather than trusted: the doc reports the
+        # language actually baked into the staged XML, not the language the
+        # build was asked for, so an admin can see at upload time what they
+        # are about to deploy.
+        [string] $StagingPath
     )
 
     $displayName = $Spec.DisplayName
@@ -363,7 +369,9 @@ __DETECTION_SCRIPT_LINE__
 
 ## 6. Dependencies / parameterisation
 __DEPENDENCY_SECTION__
-## 7. Assignment
+## 7. Baked-in build inputs
+__BUILD_INPUTS__
+## 8. Assignment
 Target the appropriate Entra (Azure AD) dynamic group:
 
 - License-based dynamic groups (e.g. users with a Visio Plan 2 service plan)
@@ -376,6 +384,43 @@ ring policy. Assign as **Required** for automatic deployment or
 ---
 Generated: __GENERATED__
 '@
+
+    # Read the languages out of the staged configuration XMLs. This is the
+    # only place an admin sees, at upload time, which UI language the package
+    # will install - a build that silently fell back to the default en-us
+    # otherwise looks identical to one built with -Language en-gb.
+    $buildInputs = '_Staged configuration not available._'
+    if (-not [string]::IsNullOrWhiteSpace($StagingPath)) {
+        $configDir = Join-Path -Path $StagingPath -ChildPath 'Configurations'
+        if (Test-Path -LiteralPath $configDir -PathType Container) {
+            $rows = @()
+            foreach ($xmlFile in (Get-ChildItem -LiteralPath $configDir -Filter '*.xml' -File | Sort-Object Name)) {
+                $langs = @()
+                try {
+                    $doc = [xml](Get-Content -LiteralPath $xmlFile.FullName -Raw)
+                    foreach ($node in $doc.SelectNodes('//Language')) {
+                        $id = $node.GetAttribute('ID')
+                        if (-not [string]::IsNullOrWhiteSpace($id)) { $langs += $id }
+                    }
+                }
+                catch { $langs = @() }
+
+                $langText = if (@($langs).Count -gt 0) { (@($langs | Select-Object -Unique) -join ', ') } else { 'n/a (no Language element)' }
+                $rows += ('| `{0}` | {1} |' -f $xmlFile.Name, $langText)
+            }
+
+            if ($rows.Count -gt 0) {
+                $buildInputs = @(
+                    'These values were resolved at build time and are baked into the package.'
+                    'Check the language before uploading: an unset `-Language` falls back to `en-us`.'
+                    ''
+                    '| Configuration | Language(s) |'
+                    '|---------------|-------------|'
+                ) + $rows + @('')
+                $buildInputs = $buildInputs -join [Environment]::NewLine
+            }
+        }
+    }
 
     # Row 2 (install / uninstall): parameterised vs static.
     if ($Spec.Parameterised) {
@@ -475,6 +520,7 @@ No dependencies. This is the base Office install.
         Replace('__PROGRAM_ROW_UNINSTALL__', $programUninstall).
         Replace('__DETECTION_SCRIPT_LINE__', $detectionLine).
         Replace('__DEPENDENCY_SECTION__', $dependencySection).
+        Replace('__BUILD_INPUTS__', $buildInputs).
         Replace('__GENERATED__', $generated)
 
     $docPath = Join-Path -Path $OutputDir -ChildPath ("{0}-IntuneConfig.md" -f $Product)
@@ -597,7 +643,7 @@ foreach ($product in $Products) {
     $detection = Publish-DetectionScripts -Product $product -Spec $spec -StagingPath $staged.StagingPath -OutputDir $productOut -RepositoryRoot $RepositoryRoot
     Write-Output ("    Detection : {0} ({1} script{2})" -f $detection.DetectionDir, $detection.ScriptCount, $(if ($detection.ScriptCount -eq 1) { '' } else { 's' }))
 
-    $docPath = Write-IntuneConfigDoc -Product $product -Spec $spec -OutputDir $productOut
+    $docPath = Write-IntuneConfigDoc -Product $product -Spec $spec -OutputDir $productOut -StagingPath $staged.StagingPath
     Write-Output ("    Config    : {0}" -f $docPath)
 
     $results.Add([pscustomobject]@{

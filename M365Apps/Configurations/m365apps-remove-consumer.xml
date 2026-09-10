@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  m365apps-remove-consumer.xml
+  Removes an OEM-preinstalled CONSUMER Click-to-Run Office, as a separate pass
+  before the enterprise install. Used by Install-M365Apps.ps1 only when
+  -RemovePreinstalledConsumerOffice is set; the switch is off by default.
+
+  Why this file exists
+  ===================
+  <RemoveMSI /> in m365apps-base.xml only removes Windows Installer versions of
+  Office. Microsoft is explicit that it does not touch Click-to-Run:
+
+    "RemoveMSI doesn't uninstall prior versions of Office, including Visio and
+     Project, that use Click-to-Run as the installation technology. Uninstall
+     those versions of Office through Control Panel or by running the Office
+     Deployment Tool and using the Remove element in your configuration.xml."
+    https://learn.microsoft.com/microsoft-365-apps/deploy/upgrade-from-msi-version
+
+  So on hardware whose image ships a consumer Microsoft 365 SKU, that product
+  remains registered next to O365ProPlusRetail after the enterprise install.
+  Two consequences:
+
+    1. ODT reconciles the existing install onto the configured channel and
+       build rather than installing cleanly, since Click-to-Run supports one
+       channel and version per device.
+    2. The device carries two Office product registrations afterwards, which
+       can confuse licensing and activation, and the default surgical
+       uninstall (m365apps-remove.xml) leaves the consumer entry in place.
+
+  Why it is a separate file rather than a <Remove> block in the base XML
+  =====================================================================
+  ODT documents <Remove> standalone and never alongside <Add>, so removal has
+  to be its own setup.exe /configure pass. Install-M365Apps.ps1 runs this one
+  first, then the base configuration.
+
+  Scoping
+  =======
+  Deliberately NOT <Remove All="TRUE" />. This lists consumer SKUs explicitly
+  so that a device which already has a legitimate enterprise Office, Visio or
+  Project installed is left alone. Keep this list in step with
+  $ConsumerProductIds in Install-M365Apps.ps1 - see docs/customization.md.
+
+  Language elements are intentionally omitted: per Microsoft's ODT
+  documentation, omitting the language attribute makes ODT discover and remove
+  all installed languages for the product.
+-->
+<Configuration ID="m365apps-remove-consumer">
+
+  <Remove>
+    <Product ID="O365HomePremRetail" />
+    <Product ID="O365SmallBusPremRetail" />
+    <Product ID="O365BusinessRetail" />
+    <Product ID="HomeBusinessRetail" />
+    <Product ID="HomeStudentRetail" />
+    <Product ID="PersonalRetail" />
+  </Remove>
+
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+
+  <Display Level="None" AcceptEULA="TRUE" />
+
+</Configuration>

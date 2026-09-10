@@ -1,0 +1,13 @@
+{
+  "_scenario": "United Kingdom. Microsoft 365 Apps installs with en-gb as its single UI language.",
+
+  "_notes": [
+    "en-gb and en-us produce packages that look identical from the outside - same file name, similar size, same detection script. The difference is visible in exactly three places: the build banner (Language='en-gb'), section 7 of the generated Build\\Output\\M365Apps\\M365Apps-IntuneConfig.md, and the client install log line 'Installing M365 Apps with languages: en-gb.'. Check one of them before you upload.",
+    "Because the two are indistinguishable at a glance, prefer this file over the -Language flag: the value is then applied to every build without having to be repeated.",
+    "The Language token applies to Microsoft 365 Apps only. Visio and Project base installs are always en-us regardless of what is set here; give them en-gb afterwards with a LanguagePack app (-TargetProduct VisioProRetail / ProjectProRetail), which the matrix does support for en-gb."
+  ],
+
+  "CompanyName": "Contoso Ltd",
+  "Language": "en-gb",
+  "ExcludedApps": null
+}

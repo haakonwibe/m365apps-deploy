@@ -51,7 +51,18 @@ Choose **Use a custom detection script** and upload:
 ## 6. Dependencies / parameterisation
 No dependencies. This is the base Office install.
 
-## 7. Assignment
+## 7. Baked-in build inputs
+These values were resolved at build time and are baked into the package.
+Check the language before uploading: an unset `-Language` falls back to `en-us`.
+
+| Configuration | Language(s) |
+|---------------|-------------|
+| `m365apps-base.xml` | en-us |
+| `m365apps-remove-consumer.xml` | n/a (no Language element) |
+| `m365apps-remove.xml` | n/a (no Language element) |
+| `m365apps-removeall.xml` | n/a (no Language element) |
+
+## 8. Assignment
 Target the appropriate Entra (Azure AD) dynamic group:
 
 - License-based dynamic groups (e.g. users with a Visio Plan 2 service plan)
@@ -62,4 +73,4 @@ ring policy. Assign as **Required** for automatic deployment or
 **Available** for Company Portal self-service.
 
 ---
-Generated: 2026-04-29T19:55:45+02:00
+Generated: 2026-09-10T11:40:04+02:00

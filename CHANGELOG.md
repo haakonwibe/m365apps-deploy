@@ -5,6 +5,77 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.9] - 2026-09-10
+
+### Added
+
+- **In-flight install progress logging.** `Invoke-ODTSetup` samples the machine
+  every `-ProgressIntervalSeconds` (default 30) while `setup.exe` is running and
+  writes one CMTrace line per sample, so a long install is a readable timeline
+  rather than a single duration. Each line reports the live Click-to-Run
+  scenario task (`STREAM`, `APPLYCONFIGURATION`, `INTEGRATE_INSTALL`, ...),
+  network throughput, system-drive free space and its delta, and CPU / working
+  set / IO for `setup.exe` and the Click-to-Run processes. Sampling waits on the
+  process itself, so it adds no time to the install, and the lines survive a run
+  cut short by an ESP timeout. Samples reach the caller through an optional
+  `-ProgressCallback` scriptblock, keeping `Common/ODTInvoke.psm1` free of any
+  cross-module dependency.
+
+- **`Get-ODTC2RPhaseTimeline`** (`Common/ODTInvoke.psm1`) reads the
+  `HKLM\SOFTWARE\Microsoft\Office\ClickToRun\UpdateStatus` timestamps and
+  returns Detection / ClientDownload / Download / Apply / Finalize spans - the
+  download-vs-apply split Click-to-Run publishes for itself. Registry only: no
+  log files are read, copied or redirected, and the toolkit's position on ODT's
+  native `<Logging>` element is unchanged.
+
+- **`Get-ODTSessionElapsed` and `Write-ODTPhase`** (`Common/ODTLogging.psm1`)
+  emit `PHASE [t+HH:MM:SS] <Name>` markers measured from the session start
+  already tracked by `Start-ODTLogSession`, so the cost of each stage of a run
+  is readable directly from the log.
+
+- **`Install-M365Apps.ps1` records when the Intune Management Extension staged
+  the payload** (`Payload staged at ...`), which quantifies part of the window
+  that precedes the install script.
+
+- **`-RemovePreinstalledConsumerOffice`** on `Install-M365Apps.ps1`, with the
+  new `M365Apps/Configurations/m365apps-remove-consumer.xml`. Removes a
+  consumer Click-to-Run Office shipped on a vendor image in its own ODT pass
+  before the enterprise install. `<RemoveMSI />` covers Windows Installer
+  products only, so without this the consumer SKU stays registered alongside
+  `O365ProPlusRetail`. Off by default; a failed removal never blocks the
+  install.
+
+- **`-ProgressIntervalSeconds`** on `Install-M365Apps.ps1` to tune or disable
+  progress logging per deployment.
+
+- **`docs/examples/` - ready-to-copy `build-config.json` files** for four common
+  rollout shapes: `en-us`, `en-gb`, a multi-country European rollout, and
+  Norwegian Bokmal + Nynorsk. The multi-language examples show the supported
+  pattern - one base UI language, additional languages as separate Win32 apps
+  from `LanguagePacks/`. Guarded by
+  `Tests/Pester/BuildConfigExamples.Tests.ps1`, which checks each example is
+  valid JSON, uses a scalar language present in the matrix, and references only
+  language packs that can be built.
+
+- **Section 7 of the generated `<Product>-IntuneConfig.md`** now states the
+  language baked into the package, read back from the staged configuration, so
+  the resolved value is visible at upload time.
+
+### Changed
+
+- **`Invoke-ODTSetup` result object gained fields** - `TimedOut`, `StartedUtc`,
+  `EndedUtc`, `SampleCount`, `Samples`, `PhaseSummary` and `DisabledSamplers`.
+  `ExitCode`, `DurationSeconds`, `Success` and `Message` are unchanged in name,
+  type and meaning, so every existing caller is unaffected.
+
+- **`Invoke-ODTSetup -TimeoutMinutes` range widened from 5-240 to 1-240**, so
+  the timeout path can be exercised in a lab without a five-minute wait. The
+  default is still 60 minutes and the timeout result is unchanged
+  (`ExitCode = -1`, same message text).
+
+- **Progress and phase lines use invariant number formatting**, so logs read
+  identically regardless of the device's locale.
+
 ## [1.0.8] - 2026-04-29
 
 ### Added

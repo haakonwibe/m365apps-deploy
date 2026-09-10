@@ -1,4 +1,4 @@
-# Customization guide
+﻿# Customization guide
 
 This toolkit ships with sensible defaults but every organisation will need
 to tweak something. This page lists the concrete places to edit, in order
@@ -29,6 +29,10 @@ copy from `build-config.example.json`):
 { "Language": "nb-no" }
 ```
 
+Ready-to-copy files for the common rollout shapes — single language,
+multi-country European, and Norwegian Bokmal + Nynorsk — are in
+[`docs/examples/`](examples/README.md).
+
 Unset / null / empty falls back to **`en-us`** (the toolkit baseline).
 The build engine validates the value against the Microsoft 365 Apps
 language matrix in `Common/ODTLanguages.psm1` and fails loudly on
@@ -37,6 +41,22 @@ install time.
 
 Re-upload `Build\Output\M365Apps\Install-M365Apps.intunewin` to Intune
 when you next deploy.
+
+> **Confirm the resolved language before uploading.** The token defaults to
+> `en-us` when unset, and packages for different languages are
+> indistinguishable from the outside — same file name, similar size, same
+> detection script. Two places state it:
+>
+> - the build banner: `Build-time tokens : ... Language='en-gb'`, or
+>   `Language='en-us' (default)` when nothing was set;
+> - section 7 of the generated `Build\Output\<Product>\<Product>-IntuneConfig.md`,
+>   which reads the language back out of the staged XML.
+>
+> On the client, the install log names it before setup.exe runs:
+> `Installing M365 Apps with languages: en-gb.`
+>
+> For a non-default language, prefer `build-config.json` over the CLI flag so
+> the value is applied to every build.
 
 **Scope of the `Language` token: Microsoft 365 Apps only.** Visio
 and Project base installs are always en-US — independent of the
@@ -206,6 +226,45 @@ activates when the user signs in). Override in the base XMLs via
 > "unset = line removed" behaviour as `CompanyName`). They aren't
 > tokenised yet, so for now the customisation is a manual XML edit
 > in your fork.
+
+## 5b. OEM-preinstalled consumer Office
+
+Some vendor images ship a *consumer* Click-to-Run Office, most commonly
+`O365HomePremRetail`. `<RemoveMSI />` does not remove it — Microsoft
+documents RemoveMSI as covering Windows Installer products only — so it
+remains registered alongside `O365ProPlusRetail` after the enterprise
+install.
+
+Opt in per deployment, in the Intune install command:
+
+```
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-M365Apps.ps1 -RemovePreinstalledConsumerOffice
+```
+
+Off by default: removing software is opt-in. When set, and only when one of
+the listed SKUs is actually present, the script runs a separate ODT pass
+against `M365Apps\Configurations\m365apps-remove-consumer.xml` first. A
+failed removal is logged as a warning and the install continues.
+
+To add a SKU, edit **both**:
+
+- `$ConsumerProductIds` near the top of `M365Apps\Install-M365Apps.ps1`
+- the `<Remove>` block in `M365Apps\Configurations\m365apps-remove-consumer.xml`
+
+`Tests\Pester\ConsumerOfficeRemoval.Tests.ps1` fails if the two drift apart.
+
+The removal XML is deliberately scoped to named products rather than
+`<Remove All="TRUE" />`, so a device that legitimately has enterprise Office,
+Visio or Project installed is left alone.
+
+## 5c. Install progress logging
+
+`Install-M365Apps.ps1 -ProgressIntervalSeconds <n>` controls how often a
+progress line is written while setup.exe runs. Default 30; `0` disables it.
+
+Drop to 15 when you are actively investigating a slow install — the
+Click-to-Run phase breakdown resolves to one interval. See
+[`docs/troubleshooting.md`](troubleshooting.md) for how to read the output.
 
 ## 6. Log path
 

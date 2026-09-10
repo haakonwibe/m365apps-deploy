@@ -1,4 +1,4 @@
-# Troubleshooting
+﻿# Troubleshooting
 
 Symptoms, causes, and resolutions for the common failures we've seen with
 this toolkit. Most of these are really *Click-to-Run* / *ODT* / *Intune*
@@ -13,6 +13,89 @@ cd C:\ProgramData\M365AppsDeploy\Logs
 Get-ChildItem *.log | Sort-Object LastWriteTime -Descending
 # Open the most recent ones in CMTrace or OneTrace.
 ```
+
+## Office install is slow (20+ minutes) - where did the time go?
+
+Since 1.0.9 the wrapper log answers this on its own. Three greps, in order:
+
+```powershell
+$log = 'C:\ProgramData\M365AppsDeploy\Logs\M365Apps-Install.log'
+
+# 1. The skeleton of the run: what each stage cost.
+Select-String -Path $log -SimpleMatch 'PHASE [t+'
+
+# 2. Which Click-to-Run phase ate the time.
+Select-String -Path $log -SimpleMatch 'C2R phase summary'
+Select-String -Path $log -SimpleMatch 'C2R reported timings'
+
+# 3. The blow-by-blow: throughput, disk growth and CPU every 30s.
+Select-String -Path $log -SimpleMatch 'Progress t='
+```
+
+### Reading the progress lines
+
+```
+Progress t=630s | c2r: scenario=INSTALL active=STREAM done=5/20 ver=<pending> | net: +142.3MB 38.0Mbit/s (tot 1204MB) | disk: C: 41.2GB free (-138MB) | OfficeClickToRun(3120) cpu=+21.4s ws=412MB rd=+2MB wr=+141MB
+```
+
+| Field | What it tells you |
+|-------|-------------------|
+| `active=STREAM` | Downloading and applying payload from the CDN. This is normally the long pole - roughly 2.8 GB for one language. |
+| `active=APPLYCONFIGURATION` / `INTEGRATE_INSTALL` | Past the download; now local work. High CPU here is disk / AV, not network. |
+| `active=<idle>` | No outstanding C2R task. Early in a run this usually means setup.exe is still bootstrapping. |
+| `scenario=<key-absent>` | The Click-to-Run key does not exist yet - setup.exe is downloading the C2R client itself. |
+| `net: ... Mbit/s` | Machine-wide receive rate. Stuck in `STREAM` at ~0 Mbit/s means the network, not the device. |
+| `disk: ... (-138MB)` | Signed. It goes **negative** near the end because C2R deletes the streamed package after applying it - that sign change is the apply/cleanup boundary, not a bug. |
+
+So: **stuck in `STREAM` at low Mbit/s is a network problem**; **stuck in
+`APPLYCONFIGURATION` at high CPU is a disk / anti-virus problem**.
+
+Use `-ProgressIntervalSeconds 15` when this is the question you are
+actively investigating - the phase breakdown resolves to one interval.
+
+### The part before the script runs
+
+The window between Intune scheduling the app and launching the install
+script is outside the wrapper's visibility, and on a busy device it can be
+several minutes of an ESP budget. One line narrows it:
+
+```
+Payload staged at 2026-09-10T06:56:11.0000000Z (549s before this session started).
+```
+
+A large age means the content had been staged for a while before the script
+started; a near-zero age means delivery had only just completed. The rest of
+that window is visible in Intune's own logs, which the toolkit deliberately
+does not collect:
+
+```powershell
+Get-ChildItem 'C:\ProgramData\Microsoft\IntuneManagementExtension\Logs' |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 5
+```
+
+Repeated `Detection: NOT installed` lines in `M365Apps-Detection.log` before
+the install starts are normal — IME re-evaluates on its own cadence — but the
+span between the first of them and `Start of session` still counts against
+the ESP budget, so it is worth measuring before tuning anything else.
+
+### What will *not* make it faster
+
+- **`ExcludeApp` does not shrink the download.** The payload is dominated by
+  a single monolithic `stream.x64.x-none.dat` (over 2 GB of the ~2.8 GB).
+  Excluding apps changes what gets registered, not what gets transferred.
+  Pinning `Version` does not shrink it either.
+- **Embedding the Office source in the `.intunewin`** moves the wait from
+  setup.exe to Intune content download rather than removing it, takes the
+  package from ~3 MB to ~3.5 GB, and obliges you to refresh it monthly -
+  stale embedded sources actively downgrade a client before the update cycle
+  pulls it forward again.
+- **Wrapper overhead is negligible.** Everything the toolkit does outside
+  `setup.exe` typically accounts for a few seconds, so tuning it yields
+  nothing measurable.
+
+What *does* help across a fleet is Delivery Optimization: Office installs
+from the CDN can use it, so check it is not restricted by policy. It makes
+no difference to a single isolated device.
 
 ### ODT native logs (for deep debugging only)
 
@@ -117,6 +200,70 @@ Current workaround:
   `Common/ODTLanguages.psm1` so the validator rejects it early, and use
   `en-us` as the Visio language instead.
 
+## A consumer Office is still installed after the enterprise install
+
+**Symptom.** The post-install line names two products:
+
+```
+Existing C2R installation detected: products=[O365HomePremRetail] platform=x64 channel=Current version=16.0.x.
+...
+Post-install: products=[O365HomePremRetail,O365ProPlusRetail] platform=x64 channel=MonthlyEnterprise version=16.0.y.
+```
+
+**Cause.** The device shipped with an OEM-preinstalled *consumer*
+Click-to-Run Office. Several vendor images do; `O365HomePremRetail` is the
+most common. `<RemoveMSI />` in `m365apps-base.xml` does **not** remove it,
+by design — Microsoft documents RemoveMSI as covering Windows Installer
+products only:
+
+> RemoveMSI doesn't uninstall prior versions of Office, including Visio and
+> Project, that use Click-to-Run as the installation technology. Uninstall
+> those versions of Office through Control Panel or by running the Office
+> Deployment Tool and using the Remove element in your configuration.xml.
+>
+> — [Remove existing MSI versions of Office](https://learn.microsoft.com/microsoft-365-apps/deploy/upgrade-from-msi-version)
+
+Two consequences:
+
+1. ODT reconciles the existing consumer install onto the configured channel
+   and build rather than installing cleanly, since Click-to-Run supports one
+   channel and version per device.
+2. The device carries two Office product registrations afterwards, which can
+   confuse licensing and activation. The default surgical uninstall
+   (`m365apps-remove.xml`) targets `O365ProPlusRetail`, so it leaves the
+   consumer entry in place.
+
+**Fix.** Add the switch to the Intune install command:
+
+```
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File Install-M365Apps.ps1 -RemovePreinstalledConsumerOffice
+```
+
+It is off by default: removing software is opt-in. When set, and only when
+one of the SKUs in `$ConsumerProductIds` is actually present, the script runs
+a separate ODT pass against `Configurations\m365apps-remove-consumer.xml`
+before the install, and logs it:
+
+```
+PHASE [t+00:00:03] ConsumerRemovalStart - Removing preinstalled consumer Office: O365HomePremRetail.
+PHASE [t+00:03:41] ConsumerRemovalEnd - exit 0 after 218s. Success.
+Products present after removal pass: [<none>].
+```
+
+A failed removal is logged as a warning and the install continues, so a
+removal problem never costs the device its Office install.
+
+**This affects the resulting configuration more than the duration.** The
+payload download is comparable either way; what changes is that ODT installs
+cleanly and the device ends up with one Office registration rather than two.
+The `C2R phase summary` line reports the duration difference on your own
+hardware.
+
+To add a SKU, edit **both** `$ConsumerProductIds` in
+`M365Apps/Install-M365Apps.ps1` and the `<Remove>` block in
+`M365Apps/Configurations/m365apps-remove-consumer.xml` -
+`Tests/Pester/ConsumerOfficeRemoval.Tests.ps1` fails the build if they drift.
+
 ## Detection returns the wrong result
 
 ### False positive (detection says installed but it's not)
@@ -165,8 +312,15 @@ Usually one of:
 
 Two likely causes:
 
-1. **ESP timeout too short**. 15-30 minutes is typical for a first Office
-   install. Set the ESP "Block device use" timeout to ≥ 60 minutes.
+1. **ESP timeout too short**. Set the ESP "Block device use" timeout to
+   ≥ 60 minutes.
+
+   On a representative modern laptop (Windows 11, Monthly Enterprise, payload
+   from the CDN), a first install measured roughly 25 minutes end to end:
+   about 60% in `setup.exe`, most of the remainder in Intune Management
+   Extension evaluation and content delivery before the install script is
+   invoked, and a few seconds of wrapper overhead. A 30-minute limit leaves
+   little headroom on a device that behaved normally.
 2. **Office is not a Required app during ESP**. If it's Available instead,
    it won't block sign-in but also won't install until the user triggers
    it. Make Office Required for ESP.
@@ -180,13 +334,27 @@ Toolkit safety timeout in `Invoke-ODTSetup`. Indicates either:
 - Another install already in progress (see the 1618 section below —
   the toolkit no longer pre-checks for this; ODT's own mutex handles it)
 
+**Read the progress lines first** - they were captured right up to the kill,
+and they say which of those it was:
+
+```powershell
+Select-String -Path 'C:\ProgramData\M365AppsDeploy\Logs\M365Apps-Install.log' -SimpleMatch 'Progress t=' |
+    Select-Object -Last 10
+```
+
+Stuck in `STREAM` at ~0 Mbit/s is the network. Stuck in
+`APPLYCONFIGURATION` with high CPU is the device. See "Office install is
+slow" above for the full field guide.
+
 Fix:
 
 - Investigate network first (run `Test-NetConnection officecdn.microsoft.com -Port 443` on the device).
 - Delete any `Office15`, `Office16`, or ODT temp folders in `%ProgramData%\Microsoft\ClickToRun\`.
 - Re-run with `-UseEvergreenSetup` to force a fresh ODT binary.
 - Bump `-TimeoutMinutes` on the `Invoke-ODTSetup` call if your environment
-  genuinely needs > 60 minutes (edit `Common/ODTInvoke.psm1`).
+  genuinely needs > 60 minutes (edit `Common/ODTInvoke.psm1`). The accepted
+  range is 1-240 minutes; 1 exists so the timeout path can be exercised in a
+  lab without a five-minute wait.
 
 ## "Another installation is already in progress" (exit 1618, or 0-1018 / 17003-2031 / 2035-0)
 

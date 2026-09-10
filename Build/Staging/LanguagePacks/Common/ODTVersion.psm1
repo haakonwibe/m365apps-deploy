@@ -19,7 +19,7 @@
 .NOTES
     Module  : ODTVersion
     Project : m365apps-deploy
-    Version : 1.0.8
+    Version : 1.0.9
 #>
 
 Set-StrictMode -Version Latest
@@ -27,7 +27,7 @@ Set-StrictMode -Version Latest
 # Single source of truth for the toolkit's version string. Update this on
 # every release — the matching CHANGELOG.md heading is required, the Pester
 # test enforces it.
-$script:ToolkitVersion = '1.0.8'
+$script:ToolkitVersion = '1.0.9'
 
 function Get-ToolkitVersion {
 <#
@@ -35,7 +35,7 @@ function Get-ToolkitVersion {
     Return the toolkit's current version string.
 
 .OUTPUTS
-    [string] - SemVer triple, e.g. '1.0.8'.
+    [string] - SemVer triple, e.g. '1.0.9'.
 
 .EXAMPLE
     $ScriptVersion = Get-ToolkitVersion

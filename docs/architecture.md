@@ -1,4 +1,4 @@
-# Architecture
+﻿# Architecture
 
 This document captures the design decisions behind `m365apps-deploy`, and the
 trade-offs we accepted. If you're tempted to change one of these, read the
@@ -152,6 +152,11 @@ setup.exe debugging, look in `%TEMP%` on the client — ODT writes files
 matching `%TEMP%\<ComputerName><timestamp>.log` by default. See
 `docs/troubleshooting.md`.
 
+In-flight visibility is provided instead by sampling the machine while
+setup.exe runs (section 8) and by reading Click-to-Run's own timings back
+out of the registry afterwards. Neither reads, copies, nor redirects an ODT
+log file, so the position above is unaffected.
+
 ### 5. CMTrace-compatible log format
 
 Admins troubleshooting failed Autopilot flows already use CMTrace or
@@ -196,7 +201,7 @@ Common/
 ├── ODTLogging.psm1        # CMTrace lines, session headers/footers, rotation
 ├── ODTPrerequisites.psm1  # Elevation / pending-reboot / disk-space checks
 ├── ODTOfficeState.psm1    # Read C2R registry, authoritative detection helpers
-├── ODTInvoke.psm1         # XML injection, setup.exe resolution, process launch
+├── ODTInvoke.psm1         # setup.exe resolution, process launch, progress sampling
 └── ODTLanguages.psm1      # Per-product language matrix + validation
 ```
 
@@ -221,6 +226,80 @@ The original specification listed only three Common modules: `ODTLogging`,
 
 Both are exported and callable from outside the toolkit if you want to
 reuse them for adjacent scripts (e.g. a pre-flight audit job).
+
+### Common modules have no cross-module dependencies
+
+`Common/*.psm1` contains no `Import-Module` between its own modules, and
+that is load-bearing rather than accidental. It keeps every module
+importable on its own, keeps the Pester suite able to import one module
+without dragging in the rest, and keeps staging a flat wildcard copy.
+
+Where it costs a little duplication we pay it deliberately and say so at the
+site — `ODTLogging.psm1` keeps its own copy of the exit-code mapping, and
+`ODTInvoke.psm1` keeps its own Registry64 accessor rather than reaching into
+`ODTOfficeState.psm1`.
+
+The same invariant is why `Invoke-ODTSetup` takes a `-ProgressCallback`
+scriptblock instead of importing `ODTLogging` and writing lines itself: a
+scriptblock executes in the session state it was *defined* in, so a callback
+authored in `Install-M365Apps.ps1` resolves `Write-ODTLog` and the caller's
+log target with no coupling at all. Corollary: the callback must be authored
+in the caller. One built with `[scriptblock]::Create()` inside the module
+would run in module scope, where `Write-ODTLog` is invisible.
+
+### 8. In-flight install progress sampling
+
+A first Office install streams roughly 2.8 GB from the CDN inside a single
+blocking `setup.exe /configure` call, which can run for many minutes. A
+single start/finish pair of log lines cannot say where that time went, and
+leaves nothing behind at all if an ESP timeout kills the run.
+
+`Invoke-ODTSetup` therefore waits on setup.exe in `-ProgressIntervalSeconds`
+slices and samples the machine between them. The interval wait *is* the wait
+on the process and returns the instant it exits, so sampling adds no time to
+the install; the schedule is absolute rather than a fixed sleep, so the
+roughly 1-second process query does not accumulate drift across a long run.
+
+Four signals, each chosen against measured alternatives on real hardware:
+
+| Signal | Source | Why not the obvious alternative |
+|--------|--------|----------------------------------|
+| C2R phase | `HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Scenario\<name>\TasksState`, via the Registry64 view | `...\ClickToRun\propertyBag` does not exist on current builds. The active task is derived as "not `TASKSTATE_COMPLETED`", which is order-independent — value enumeration order is not a documented contract. |
+| Process CPU / IO | one `Get-CimInstance Win32_Process` query | `Get-Process` exposes no IO counters, and its `.CPU` property returns `$null` *silently* for a service-hosted process such as `OfficeClickToRun`, so arithmetic on it throws. |
+| Network receive | `System.Net.NetworkInformation.NetworkInterface` (~21 ms) | `Get-NetAdapterStatistics` is a CDXML function over `root/StandardCimv2` needing module autoload and a CIM provider — slow or flaky on a cold OOBE device — and measured roughly 36x more expensive. Filter-driver pseudo-adapters mirror the real NIC's counters, so results are de-duplicated by MAC (max per MAC), which lands within 0.2% of the cmdlet. |
+| System-drive free space | `System.IO.DriveInfo` (~2 ms) | `Win32_LogicalDisk` costs 13x more and drags in WMI. |
+
+**`Get-Counter` is deliberately not used anywhere.** It resolves counter
+path text against `Perflib\CurrentLanguage`, not the invariant `009`, so
+English counter paths fail on a non-English Windows. It was also the
+slowest option measured.
+
+For the same reason every number in a progress line is formatted with
+invariant fixed-point rather than `-f {0:N1}`: `N` formatting is
+culture-sensitive, so logs would otherwise read `41,2GB` on one device and
+`41.2GB` on another, with locale-specific group separators making the lines
+awkward to grep and to parse.
+
+Sampling must never break an install, enforced in three layers:
+
+1. Each sampler is wrapped by a circuit breaker that disables it permanently
+   on its first throw, or on exceeding a wall-clock budget.
+2. The sample object pre-initialises every field, because under
+   `Set-StrictMode -Version Latest` reading a property that was never added
+   throws.
+3. The whole sample block, and the callback invocation separately, are
+   caught and swallowed.
+
+The budget is checked after the fact rather than pre-empted — PowerShell 5.1
+cannot cancel a synchronous call without another runspace, and it is not
+worth one, because a slow sampler delays the next log line rather than the
+install.
+
+`Get-ODTC2RPhaseTimeline` complements this after the run by decoding the
+`...\ClickToRun\UpdateStatus` timestamps (REG_SZ, milliseconds since 1601)
+into Detection / ClientDownload / Download / Apply / Finalize spans. That is
+Click-to-Run's own ground truth, where the sampler's phase summary resolves
+only to one sampling interval. It reads the registry and nothing else.
 
 ## Intune execution environment
 
@@ -572,24 +651,41 @@ and stay gitignored. Everything else is committed text.
 For every `Install-*.ps1`:
 
 ```
-1. Import Common/ modules
-2. Start-ODTLogSession
-3. Invoke-ODTPrerequisiteChecks  (Elevation, PendingReboot, DiskSpace -
+1.  Import Common/ modules
+2.  Start-ODTLogSession
+2b. Log payload staging time      (CreationTimeUtc of $PSScriptRoot - how long
+                                   IME held the content before running us)
+3.  Invoke-ODTPrerequisiteChecks  (Elevation, PendingReboot, DiskSpace -
                                    see "Concurrency is delegated to ODT"
                                    below; there is no NoRunningSetup check)
-4. Product-specific validation
-   - M365 Apps: none (no dependency)
-   - Visio/Project: require O365ProPlusRetail installed + matching channel/arch
-   - LanguagePack: require -TargetProduct installed + language in matrix
-5. Resolve-ODTConfigurationPath  (local | URL | bundled default)
-6. Resolve-ODTSetupPath          (bundled | evergreen download)
-7. Invoke-ODTSetup               (setup.exe /configure, capture exit code)
-8. Post-install verification     (Test-ProductInstalled — registry check
-                                  via Registry64 helpers, catches silent
-                                  ODT failures)
-9. Stop-ODTLogSession
+4.  Product-specific validation
+    - M365 Apps: none (no dependency)
+    - Visio/Project: require O365ProPlusRetail installed + matching channel/arch
+    - LanguagePack: require -TargetProduct installed + language in matrix
+5.  Resolve-ODTSetupPath          (bundled | evergreen download)
+5b. Consumer Office removal       (M365 Apps only, opt-in via
+                                   -RemovePreinstalledConsumerOffice; its own
+                                   setup.exe pass, never fatal)
+6.  Resolve-ODTConfigurationPath  (local | URL | bundled default)
+7.  Invoke-ODTSetup               (setup.exe /configure, sampling progress
+                                   every -ProgressIntervalSeconds, capture
+                                   exit code)
+7b. Log C2R phase summary         (derived from the samples just taken)
+8.  Post-install verification     (Test-ProductInstalled — registry check
+                                   via Registry64 helpers, catches silent
+                                   ODT failures)
+8b. Get-ODTC2RPhaseTimeline       (in finally, so it also runs on the failure
+                                   path - C2R's own download/apply timings)
+9.  Stop-ODTLogSession
 10. exit <code>
 ```
+
+Steps 5 and 6 are in that order because the optional removal pass at 5b
+needs `setup.exe` and runs before the install configuration is resolved.
+
+Phase markers (`PHASE [t+HH:MM:SS] <Name>`) bracket each of these, so the
+cost of every stage is readable straight from the log without correlating
+timestamps by hand.
 
 Any failure between steps 3 and 9 is caught, logged with severity 3, and
 turned into an appropriate non-zero exit code. Intune reads the exit code

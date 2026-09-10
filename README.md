@@ -446,6 +446,27 @@ Open with:
 - 🧰 OneTrace
 - 📝 Any plain-text editor (degrades gracefully)
 
+### ⏱️ Reading a slow install
+
+A first Office install streams ~2.8 GB from the CDN, so it takes a while.
+Two line formats account for that time:
+
+```
+PHASE [t+00:00:04] SetupStart - Starting setup.exe /configure.
+Progress t=630s | c2r: scenario=INSTALL active=STREAM done=5/20 ver=<pending> | net: +142.3MB 38.0Mbit/s (tot 1204MB) | disk: C: 41.2GB free (-138MB) | OfficeClickToRun(3120) cpu=+21.4s ws=412MB rd=+2MB wr=+141MB
+C2R phase summary: CREATEWORKINGCONFIGURATION 0-95s (95s) | STREAM 95-680s (585s) | APPLYCONFIGURATION 680-790s (110s)
+```
+
+`PHASE [t+` brackets every stage of the run. `Progress t=` is written every
+30 seconds while setup.exe runs, and survives an ESP timeout. Stuck in
+`STREAM` at low Mbit/s is the network; stuck in `APPLYCONFIGURATION` at high
+CPU is the device. Full field guide in
+[`docs/troubleshooting.md`](docs/troubleshooting.md).
+
+> 📉 The `disk: ... (-138MB)` figure is signed and goes negative near the
+> end — that is Click-to-Run reclaiming the streamed package after applying
+> it, i.e. the apply/cleanup boundary, not a bug.
+
 > 🔒 If `C:\ProgramData\` is locked down in your org, override with
 > `-LogPath` on every script — consistently across install, uninstall,
 > and detection commands. See

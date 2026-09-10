@@ -1,0 +1,13 @@
+{
+  "_scenario": "United States / default baseline. Microsoft 365 Apps installs with en-us as its single UI language.",
+
+  "_notes": [
+    "en-us is also what you get with no build-config.json at all, and with a null or empty Language value - the token registration defaults to it. Setting it explicitly is still worth doing: the build banner then prints Language='en-us' rather than Language='en-us' (default), so the log records it as a deliberate choice.",
+    "Copy this file to build-config.json in the repository root. That filename is gitignored, so your organisation's values never end up in a commit.",
+    "ExcludedApps: null keeps the toolkit default (Access, Bing, Groove, Lync, OneDrive, Publisher, Teams). An explicit array REPLACES that set rather than adding to it - list every app you want excluded, not just the extra ones."
+  ],
+
+  "CompanyName": "Contoso Ltd",
+  "Language": "en-us",
+  "ExcludedApps": null
+}

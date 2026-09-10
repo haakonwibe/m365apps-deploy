@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Pester tests for the build-time XML token-substitution engine.
@@ -534,7 +534,7 @@ Describe 'Visio/Project base XML hardcodes en-us (no runtime LanguageID token)' 
     # MatchPreviousMSI, the toolkit's single-language-baseline principle
     # for these products breaks.
 
-    It 'source <Path> uses literal <Language ID="en-us" />' -ForEach @(
+    It 'source <Path> uses a literal en-us Language element' -ForEach @(
         @{ Path = 'Visio\Configurations\visio-base.xml' }
         @{ Path = 'Project\Configurations\project-base.xml' }
     ) {

@@ -54,7 +54,16 @@ with **Automatically install: Yes**. Visio and Project will refuse to
 install if the base Office install is missing, and the toolkit
 enforces the channel / architecture match.
 
-## 7. Assignment
+## 7. Baked-in build inputs
+These values were resolved at build time and are baked into the package.
+Check the language before uploading: an unset `-Language` falls back to `en-us`.
+
+| Configuration | Language(s) |
+|---------------|-------------|
+| `visio-base.xml` | en-us |
+| `visio-remove.xml` | n/a (no Language element) |
+
+## 8. Assignment
 Target the appropriate Entra (Azure AD) dynamic group:
 
 - License-based dynamic groups (e.g. users with a Visio Plan 2 service plan)
@@ -65,4 +74,4 @@ ring policy. Assign as **Required** for automatic deployment or
 **Available** for Company Portal self-service.
 
 ---
-Generated: 2026-04-29T19:55:45+02:00
+Generated: 2026-09-10T11:40:04+02:00
