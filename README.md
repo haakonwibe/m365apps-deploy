@@ -6,7 +6,7 @@
 ![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B-5391FE?logo=powershell&logoColor=white)
 ![Intune Win32](https://img.shields.io/badge/Intune-Win32-0078D4?logo=microsoft&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![Version](https://img.shields.io/badge/version-1.0.8-blue.svg)
+![Version](https://img.shields.io/badge/version-1.0.9-blue.svg)
 
 [![m365apps-deploy poster](site/poster.png)](https://haakonwibe.github.io/m365apps-deploy/)
 
@@ -540,7 +540,7 @@ cleanly from install mechanics.
 - 📄 **License**: [MIT](LICENSE)
 - 🔖 **Versioning**: [Semantic Versioning](https://semver.org/) — see
   [`CHANGELOG.md`](CHANGELOG.md).
-- 🧷 **Current version**: `1.0.8`
+- 🧷 **Current version**: `1.0.9`
 
 ---
 
