@@ -264,7 +264,7 @@ Four signals, each chosen against measured alternatives on real hardware:
 
 | Signal | Source | Why not the obvious alternative |
 |--------|--------|----------------------------------|
-| C2R phase | `HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Scenario\<name>\TasksState`, via the Registry64 view | `...\ClickToRun\propertyBag` does not exist on current builds. The active task is derived as "not `TASKSTATE_COMPLETED`", which is order-independent — value enumeration order is not a documented contract. |
+| C2R phase | `HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Scenario\<name>\TasksState`, via the Registry64 view | `...\ClickToRun\propertyBag` does not exist on current builds. The key is populated progressively, and some entries (`SCENARIO`, `BRANCH`, `GROUP`, `PROMPTUSER`) bracket other work rather than being work themselves, so the active task is the last non-completed entry preferring a non-structural one. |
 | Process CPU / IO | one `Get-CimInstance Win32_Process` query | `Get-Process` exposes no IO counters, and its `.CPU` property returns `$null` *silently* for a service-hosted process such as `OfficeClickToRun`, so arithmetic on it throws. |
 | Network receive | `System.Net.NetworkInformation.NetworkInterface` (~21 ms) | `Get-NetAdapterStatistics` is a CDXML function over `root/StandardCimv2` needing module autoload and a CIM provider — slow or flaky on a cold OOBE device — and measured roughly 36x more expensive. Filter-driver pseudo-adapters mirror the real NIC's counters, so results are de-duplicated by MAC (max per MAC), which lands within 0.2% of the cmdlet. |
 | System-drive free space | `System.IO.DriveInfo` (~2 ms) | `Win32_LogicalDisk` costs 13x more and drags in WMI. |

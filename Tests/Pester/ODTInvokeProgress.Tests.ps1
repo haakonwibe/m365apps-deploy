@@ -164,13 +164,62 @@ InModuleScope ODTInvoke {
                 Should -Be 'APPLYCONFIGURATION'
         }
 
-        It 'picks the earliest outstanding task when several are not completed' {
+        It 'picks the latest outstanding task when several are not completed' {
+            # Click-to-Run appends entries as the pipeline advances, so the
+            # newest outstanding entry is the work actually in flight. Taking
+            # the earliest would report a task that has already moved on.
             $map = New-TaskStateMap -Override @{
                 'STREAM:{00000000-0000-0000-0000-000000000006}'             = 'TASKSTATE_EXECUTING'
                 'APPLYCONFIGURATION:{00000000-0000-0000-0000-000000000009}' = 'TASKSTATE_NOTSTARTED'
             }
             (ConvertTo-ODTScenarioState -ValueNames $script:InstallTaskNames -States $map).Active |
+                Should -Be 'APPLYCONFIGURATION'
+        }
+
+        It 'never reports a structural entry while real work is outstanding' {
+            # SCENARIO spans the whole run and only completes at the very end.
+            # Reporting it as the active task hides everything that matters.
+            $map = New-TaskStateMap -Override @{
+                'SCENARIO:{00000000-0000-0000-0000-000000000001}' = 'TASKSTATE_EXECUTING'
+                'STREAM:{00000000-0000-0000-0000-000000000006}'   = 'TASKSTATE_EXECUTING'
+            }
+            (ConvertTo-ODTScenarioState -ValueNames $script:InstallTaskNames -States $map).Active |
                 Should -Be 'STREAM'
+        }
+
+        It 'falls back to a structural entry only when nothing else is outstanding' {
+            $map = New-TaskStateMap -Override @{
+                'SCENARIO:{00000000-0000-0000-0000-000000000001}' = 'TASKSTATE_EXECUTING'
+            }
+            (ConvertTo-ODTScenarioState -ValueNames $script:InstallTaskNames -States $map).Active |
+                Should -Be 'SCENARIO'
+        }
+
+        It 'tracks a progressively growing key the way a real install populates it' {
+            # Regression fixture taken from an observed install, where the key
+            # grew 6 -> 7 -> 9 entries while SCENARIO stayed non-completed
+            # throughout. Before the fix this reported SCENARIO at every step
+            # and the phase summary collapsed to a single useless bucket.
+            $steps = @(
+                @{ Names = @('SCENARIO','PROMPTUSER','BRANCH','GROUP','CREATEWORKINGCONFIGURATION','STREAM')
+                   Done  = @('PROMPTUSER','BRANCH','GROUP','CREATEWORKINGCONFIGURATION')
+                   Expect = 'STREAM' }
+                @{ Names = @('SCENARIO','PROMPTUSER','BRANCH','GROUP','CREATEWORKINGCONFIGURATION','STREAM','STAGEREGISTRY')
+                   Done  = @('PROMPTUSER','BRANCH','GROUP','CREATEWORKINGCONFIGURATION','STREAM')
+                   Expect = 'STAGEREGISTRY' }
+                @{ Names = @('SCENARIO','PROMPTUSER','BRANCH','GROUP','CREATEWORKINGCONFIGURATION','STREAM','STAGEREGISTRY','APPLYCONFIGURATION','INTEGRATE_INSTALL')
+                   Done  = @('PROMPTUSER','BRANCH','GROUP','CREATEWORKINGCONFIGURATION','STREAM','STAGEREGISTRY','APPLYCONFIGURATION')
+                   Expect = 'INTEGRATE_INSTALL' }
+            )
+
+            foreach ($step in $steps) {
+                $states = @{}
+                foreach ($n in $step.Names) {
+                    $states[$n] = if ($n -in $step.Done) { 'TASKSTATE_COMPLETED' } else { 'TASKSTATE_EXECUTING' }
+                }
+                (ConvertTo-ODTScenarioState -ValueNames $step.Names -States $states).Active |
+                    Should -Be $step.Expect -Because "with $($step.Names.Count) entries the active task is $($step.Expect)"
+            }
         }
 
         It 'treats any non-COMPLETED state as outstanding' {

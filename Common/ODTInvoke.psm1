@@ -48,6 +48,11 @@ Set-StrictMode -Version Latest
 
 $script:ODTEvergreenUrl = 'https://officecdn.microsoft.com/pr/wsus/setup.exe'
 
+# Click-to-Run scenario entries that bracket other work rather than being work
+# themselves. SCENARIO spans the whole run and only completes at the end, so
+# reporting it as the active task hides everything that matters.
+$script:ODTStructuralTasks = @('SCENARIO', 'BRANCH', 'GROUP', 'PROMPTUSER')
+
 $script:KnownExitCodes = @{
     0     = 'Success.'
     1602  = 'User cancelled the install.'
@@ -411,9 +416,19 @@ function ConvertTo-ODTScenarioState {
     (the CDN download, and the long pole) -> STAGEREGISTRY ->
     APPLYCONFIGURATION -> INTEGRATE_INSTALL.
 
-    The active task is determined as "not TASKSTATE_COMPLETED", which is
-    order-independent and therefore correct even though value enumeration
-    order is not a documented contract.
+    Two properties of the live key drive the selection below, both observed
+    on real installs rather than documented:
+
+      1. The key is populated PROGRESSIVELY. The task count grows as the
+         pipeline advances (6 -> 7 -> 9 -> 16 -> 20 entries over one run),
+         so the newest entries are the work in flight.
+      2. Some entries are structural rather than units of work. SCENARIO is
+         an umbrella over the whole run and stays non-completed until the
+         very end; BRANCH / GROUP / PROMPTUSER bracket sub-sequences.
+
+    So the active task is the LAST non-completed entry, preferring one that
+    is not structural. Taking the FIRST non-completed entry instead reports
+    SCENARIO for the entire run, which says nothing.
 
 .PARAMETER ValueNames
     Value names as enumerated from the key, e.g. 'STREAM:{GUID}'.
@@ -438,9 +453,10 @@ function ConvertTo-ODTScenarioState {
     if ($null -ne $ValueNames) { $names = @($ValueNames) }
     $map = if ($null -eq $States) { @{} } else { $States }
 
-    $active    = $null
-    $completed = 0
-    $lastName  = $null
+    $completed       = 0
+    $lastName        = $null
+    $lastOutstanding = $null   # last non-completed entry of any kind
+    $lastRealWork    = $null   # last non-completed entry that is a unit of work
 
     foreach ($name in $names) {
         if ([string]::IsNullOrWhiteSpace($name)) { continue }
@@ -452,14 +468,16 @@ function ConvertTo-ODTScenarioState {
         $state = [string]$map[$name]
         if ($state -eq 'TASKSTATE_COMPLETED') {
             $completed++
+            continue
         }
-        elseif ($null -eq $active) {
-            # First non-completed task wins. If several are outstanding the
-            # earliest-enumerated is the best available guess, and the counts
-            # still tell the reader how far through the pipeline we are.
-            $active = $taskName
-        }
+
+        # Not completed: keep overwriting so the last one seen wins. The key
+        # grows as the pipeline advances, so later entries are newer work.
+        $lastOutstanding = $taskName
+        if ($taskName -notin $script:ODTStructuralTasks) { $lastRealWork = $taskName }
     }
+
+    $active = if ($null -ne $lastRealWork) { $lastRealWork } else { $lastOutstanding }
 
     return [pscustomobject]@{
         Active    = $active

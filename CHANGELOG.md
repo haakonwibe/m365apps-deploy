@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.10] - 2026-09-11
+
+### Fixed
+
+- **The Click-to-Run phase summary reported a single meaningless span.**
+  `ConvertTo-ODTScenarioState` selected the first non-completed entry in the
+  scenario's TasksState key. `SCENARIO` is an umbrella entry that sits first
+  and stays open until the run ends, so every progress line reported
+  `active=SCENARIO` and the summary collapsed to one bucket covering the whole
+  install.
+
+  Two properties of the live key, observed on real installs, now drive the
+  selection: the key is populated progressively as the pipeline advances, so
+  the newest outstanding entry is the work in flight; and `SCENARIO`, `BRANCH`,
+  `GROUP` and `PROMPTUSER` are structural rather than units of work. The active
+  task is now the last non-completed entry, preferring a non-structural one,
+  which reports `STREAM` during the download and `APPLYCONFIGURATION` /
+  `INTEGRATE_INSTALL` during the local phases as intended.
+
 ## [1.0.9] - 2026-09-10
 
 ### Added

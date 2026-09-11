@@ -23,7 +23,7 @@
 
 .NOTES
     Variant   : uz-latn-uz
-    Generated : 2026-09-10T11:40:06+02:00
+    Generated : 2026-09-11T12:27:36+02:00
     Project   : m365apps-deploy
 #>
 [CmdletBinding()]

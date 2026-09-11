@@ -73,4 +73,4 @@ ring policy. Assign as **Required** for automatic deployment or
 **Available** for Company Portal self-service.
 
 ---
-Generated: 2026-09-10T11:40:04+02:00
+Generated: 2026-09-11T12:27:33+02:00

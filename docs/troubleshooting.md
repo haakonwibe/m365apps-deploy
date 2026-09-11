@@ -43,6 +43,7 @@ Progress t=630s | c2r: scenario=INSTALL active=STREAM done=5/20 ver=<pending> | 
 | `active=STREAM` | Downloading and applying payload from the CDN. This is normally the long pole - roughly 2.8 GB for one language. |
 | `active=APPLYCONFIGURATION` / `INTEGRATE_INSTALL` | Past the download; now local work. High CPU here is disk / AV, not network. |
 | `active=<idle>` | No outstanding C2R task. Early in a run this usually means setup.exe is still bootstrapping. |
+| `done=5/20` | Completed / total tasks. The total **grows** during a run as Click-to-Run appends pipeline entries, so it is a progress hint rather than a fixed denominator. |
 | `scenario=<key-absent>` | The Click-to-Run key does not exist yet - setup.exe is downloading the C2R client itself. |
 | `net: ... Mbit/s` | Machine-wide receive rate. Stuck in `STREAM` at ~0 Mbit/s means the network, not the device. |
 | `disk: ... (-138MB)` | Signed. It goes **negative** near the end because C2R deletes the streamed package after applying it - that sign change is the apply/cleanup boundary, not a bug. |
